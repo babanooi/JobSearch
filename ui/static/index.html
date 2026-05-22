@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JobSearch · 求职技能分析助手</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- ═══ 侧边栏 ═══ -->
+<aside id="sidebar">
+  <div class="sidebar-header">
+    <h1>JobSearch</h1>
+    <div class="user-area" id="userArea">
+      <span class="user-tag" id="userTag"></span>
+      <span class="user-arrow">▾</span>
+      <div class="user-dropdown" id="userDropdown">
+        <div class="user-dropdown-title">切换用户</div>
+        <div id="userList"></div>
+        <div class="user-dropdown-divider"></div>
+        <button class="user-dropdown-item new" id="btnNewUser">+ 创建新用户</button>
+      </div>
+    </div>
+  </div>
+
+  <button id="btnNewChat" class="btn-new">+ 新对话</button>
+
+  <div class="sidebar-section">
+    <h2>历史对话</h2>
+    <div id="convList"></div>
+  </div>
+
+  <div class="sidebar-section">
+    <h2>已分析岗位</h2>
+    <div id="jobList"></div>
+  </div>
+</aside>
+
+<!-- ═══ 主对话区 ═══ -->
+<main id="chatMain">
+  <div id="chatHeader">
+    <h1>✦ 求职技能分析助手</h1>
+    <p>基于真实 JD 数据，自然语言探索岗位技能需求</p>
+  </div>
+
+  <div id="messageList"></div>
+
+  <div id="rankingView" style="display:none">
+    <button id="btnBackToChat" class="back-btn">← 返回对话</button>
+    <div id="rankingContent"></div>
+  </div>
+
+  <div id="inputArea">
+    <input
+      type="text"
+      id="chatInput"
+      placeholder="例如：Python 后端需要什么技能？"
+      autocomplete="off"
+    />
+    <button id="btnSend">发送</button>
+  </div>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

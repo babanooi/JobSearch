@@ -30,6 +30,6 @@ class JdChunk(Base):
     )
     chunk_index: Mapped[int] = mapped_column(Integer, comment="块序号（从 0 开始）")
     chunk_text: Mapped[str] = mapped_column(Text, comment="文本块内容")
-    chunk_hash: Mapped[str] = mapped_column(String(64), index=True, unique=True, comment="SHA256 去重指纹")
+    chunk_hash: Mapped[str] = mapped_column(String(64), index=True, comment="SHA256 指纹（非唯一，不同JD可有相同文本段）")
     token_count: Mapped[int] = mapped_column(Integer, default=0, comment="估算 token 数")
     chroma_id: Mapped[str] = mapped_column(String(255), nullable=True, comment="ChromaDB 中对应的 embedding ID")

@@ -62,7 +62,12 @@ class DBTool:
                     .all()
                 )
                 return [
-                    {"skill": r.skill_name, "count": r.count, "total_jds": r.total_jds}
+                    {
+                        "skill": r.skill_name,
+                        "count": r.count,
+                        "total_jds": r.total_jds,
+                        "last_seen_at": r.last_seen_at.strftime("%Y-%m-%d %H:%M") if r.last_seen_at else "",
+                    }
                     for r in rows
                 ]
             except Exception as e:

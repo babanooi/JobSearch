@@ -5,7 +5,6 @@ from pathlib import Path
 from agents.search import SearchAgent
 from agents.extract import ExtractAgent
 from agents.chat import ChatAgent
-from agents.supervisor_agent import ChatSupervisor
 from tools.search import JobSearchTool
 from tools.database import DBTool
 from tools.jd_store import JDStore
@@ -26,7 +25,6 @@ class Registry:
         self.search_agent = SearchAgent(search_tool=self.search_tool)
         self.extract_agent = ExtractAgent()
         self.chat_agent = ChatAgent()
-        self.supervisor = ChatSupervisor()
 
         # JD 知识库存储
         embeddings = create_embeddings()
