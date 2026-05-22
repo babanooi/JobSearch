@@ -1,63 +1,116 @@
-import time
-import uuid
-from pydantic import BaseModel
-from graph.workflow import agent_graph
-from agents.registry import registry
-from fastapi import FastAPI
-from database.db import init_database
-from utils.logger import get_logger
+"""求职助手 CLI 入口"""
+import argparse
+import sys
+from pathlib import Path
 
-db = registry.db_tool
+sys.path.insert(0, str(Path(__file__).parent))
 
-logger = get_logger(__name__)
+from core.config import settings
+from core.logger import get_logger
 
-app = FastAPI(title="企业级多Agent岗位技能分析系统")
+logger = get_logger("cli")
 
 
-@app.on_event("startup")
-def on_startup():
-    logger.info("服务启动，初始化数据库...")
-    init_database()
-    logger.info("数据库初始化完成")
+def cmd_serve():
+    """启动 FastAPI 服务"""
+    import uvicorn
+    uvicorn.run("api.fastapi_app:app", host="0.0.0.0", port=8000, reload=True)
 
 
-class JobRequest(BaseModel):
-    job_name: str
+def cmd_ui():
+    """启动 Streamlit Chat UI"""
+    from streamlit.web import cli as stcli
+    ui_path = str(Path(__file__).parent / "ui" / "streamlit_app.py")
+    sys.argv = ["streamlit", "run", ui_path]
+    stcli.main()
 
 
-@app.post("/analyze_job")
-def analyze_job(request: JobRequest):
-    """
-    传入岗位名称 → 触发多Agent工作流
-    流程：标准化 → 搜索 → 评估 → (回环) → 抽取 → 入库
-    """
-    t0 = time.time()
-    thread_id = str(uuid.uuid4())
-    logger.info(f"POST /analyze_job 收到请求: job_name={request.job_name}, thread_id={thread_id}")
+def cmd_analyze(job_name: str):
+    """命令行直接分析岗位"""
+    from graphs.analyze import agent_graph
+    import uuid
 
+    logger.info(f"分析岗位: {job_name}")
     result = agent_graph.invoke(
-        {"job_name": request.job_name, "status": "开始执行"},
-        config={"configurable": {"thread_id": thread_id}},
+        {"job_name": job_name, "status": "开始执行"},
+        config={"configurable": {"thread_id": str(uuid.uuid4())}},
     )
+    print(f"状态: {result.get('status')}")
+    print(f"技能数: {len(result.get('skill_list', []))}")
+    print(f"收集 JD: {len(result.get('search_raw_items', []))} 条")
 
-    elapsed = time.time() - t0
-    logger.info(f"POST /analyze_job 完成 → 耗时 {elapsed:.1f}s, thread_id={thread_id}")
 
-    return {
-        "code": 200,
-        "msg": "分析完成",
-        "status": result["status"],
-        "elapsed": f"{elapsed:.1f}s",
-        "thread_id": thread_id,
+def cmd_rank(job_name: str, top_n: int = 10):
+    """查询技能排名"""
+    from agents.registry import registry
+    skills = registry.db_tool.get_skill_rank(job_name, top_n)
+    if not skills:
+        print(f"未找到 {job_name} 的分析数据")
+        return
+    print(f"\n{job_name} 技能 Top{len(skills)}:")
+    for i, s in enumerate(skills, 1):
+        print(f"  {i}. {s['skill']} (出现 {s['count']} 次)")
+
+
+def cmd_doctor():
+    """环境自检"""
+    checks = {
+        "DeepSeek API": bool(settings.DEEPSEEK_API_KEY),
+        "Tavily API": bool(settings.TAVILY_API_KEY),
+        "Dashscope API": bool(settings.DASHSCOPE_API_KEY),
+        "MySQL URL": bool(settings.DATABASE_URL),
     }
+    for name, ok in checks.items():
+        print(f"  {'OK' if ok else 'MISSING'} {name}")
+
+    try:
+        from models.database import engine
+        engine.connect().close()
+        print("  OK  MySQL 连接")
+    except Exception as e:
+        print(f"  FAIL MySQL 连接: {e}")
+
+    try:
+        from tools.embedding import create_embeddings
+        emb = create_embeddings()
+        emb.embed_query("test")
+        print("  OK  Embedding API")
+    except Exception as e:
+        print(f"  FAIL Embedding: {e}")
+
+    print("\n环境自检完成")
 
 
-@app.get("/skill_rank/{job_name}")
-def get_skill_rank(job_name: str, top_n: int = 10):
-    """
-    获取岗位最受关注的技能关键词top10
-    """
-    logger.info(f"GET /skill_rank/{job_name} top_n={top_n}")
-    rank = db.get_skill_rank(job_name, top_n)
-    logger.debug(f"GET /skill_rank/{job_name} 返回 {len(rank)} 条")
-    return {"code": 200, "data": rank}
+def main():
+    parser = argparse.ArgumentParser(description="求职助手")
+    sub = parser.add_subparsers(dest="command")
+
+    sub.add_parser("serve", help="启动 FastAPI 服务")
+    sub.add_parser("ui", help="启动 Streamlit Chat UI")
+    sub.add_parser("doctor", help="环境自检")
+
+    p_analyze = sub.add_parser("analyze", help="命令行分析岗位")
+    p_analyze.add_argument("job_name", help="岗位名称")
+
+    p_rank = sub.add_parser("rank", help="查询技能排名")
+    p_rank.add_argument("job_name", help="岗位名称")
+    p_rank.add_argument("--top", type=int, default=10, help="返回 Top N")
+
+    args = parser.parse_args()
+
+    if args.command == "serve":
+        cmd_serve()
+    elif args.command == "ui":
+        cmd_ui()
+    elif args.command == "doctor":
+        cmd_doctor()
+    elif args.command == "analyze":
+        cmd_analyze(args.job_name)
+    elif args.command == "rank":
+        cmd_rank(args.job_name, args.top)
+    else:
+        parser.print_help()
+
+
+if __name__ == "__main__":
+    main()

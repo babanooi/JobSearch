@@ -1,0 +1,83 @@
+{"ts": "2026-05-21 21:08:09", "node": "supervise", "purpose": "对话意图路由", "model": "deepseek-chat", "thread_id": "3b1ee884-3d3f-445d-b566-bd044433a3d5", "intent": "analyze", "status": "ok", "elapsed_ms": 734}
+{"ts": "2026-05-21 21:08:10", "node": "trigger_analyze", "purpose": "执行分析工作流", "model": "deepseek-v4-pro+chat", "thread_id": "3b1ee884-3d3f-445d-b566-bd044433a3d5", "job_name": "Python后端", "skills_count": 97, "jd_items": 14, "status": "ok", "elapsed_ms": 68444}
+{"ts": "2026-05-21 21:19:12", "node": "supervise", "purpose": "对话意图路由", "model": "deepseek-chat", "thread_id": "92cb4bcf-ba55-4b09-aba4-c37f50252549", "intent": "analyze", "status": "ok", "elapsed_ms": 1279}
+{"ts": "2026-05-21 21:19:13", "node": "search", "purpose": "Tavily 搜索 第1轮", "model": "tavily", "round": 1, "results": 4, "status": "ok", "elapsed_ms": 2427}
+{"ts": "2026-05-21 21:19:16", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 4, "chunks_output": 1, "status": "ok", "elapsed_ms": 898}
+{"ts": "2026-05-21 21:19:16", "node": "evaluate", "purpose": "LLM 评估 第1轮", "model": "deepseek-v4-pro", "round": 1, "decision": "SEARCH|Python后端 技能要求", "status": "ok", "elapsed_ms": 5097}
+{"ts": "2026-05-21 21:19:22", "node": "search", "purpose": "Tavily 搜索 第2轮", "model": "tavily", "round": 2, "results": 5, "status": "ok", "elapsed_ms": 1385}
+{"ts": "2026-05-21 21:19:23", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 9, "chunks_output": 3, "status": "ok", "elapsed_ms": 795}
+{"ts": "2026-05-21 21:19:24", "node": "evaluate", "purpose": "LLM 评估 第2轮", "model": "deepseek-v4-pro", "round": 2, "decision": "SEARCH|Python后端 技能要求 框架 数据库", "status": "ok", "elapsed_ms": 7075}
+{"ts": "2026-05-21 21:19:31", "node": "search", "purpose": "Tavily 搜索 第3轮", "model": "tavily", "round": 3, "results": 4, "status": "ok", "elapsed_ms": 2621}
+{"ts": "2026-05-21 21:19:33", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 13, "chunks_output": 0, "status": "ok", "elapsed_ms": 10}
+{"ts": "2026-05-21 21:19:33", "node": "evaluate", "purpose": "LLM 评估 第3轮", "model": "deepseek-v4-pro", "round": 3, "decision": "SEARCH|Python后端", "status": "ok", "elapsed_ms": 18351}
+{"ts": "2026-05-21 21:19:52", "node": "search", "purpose": "Tavily 搜索 第4轮", "model": "tavily", "round": 4, "results": 5, "status": "ok", "elapsed_ms": 1854}
+{"ts": "2026-05-21 21:19:54", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 18, "chunks_output": 0, "status": "ok", "elapsed_ms": 15}
+{"ts": "2026-05-21 21:19:54", "node": "evaluate", "purpose": "LLM 评估 第4轮", "model": "deepseek-v4-pro", "round": 4, "decision": "SEARCH|Python后端 技能要求 Django Flask", "status": "ok", "elapsed_ms": 9320}
+{"ts": "2026-05-21 21:20:03", "node": "search", "purpose": "Tavily 搜索 第5轮", "model": "tavily", "round": 5, "results": 3, "status": "ok", "elapsed_ms": 1829}
+{"ts": "2026-05-21 21:20:05", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 21, "chunks_output": 1, "status": "ok", "elapsed_ms": 679}
+{"ts": "2026-05-21 21:20:05", "node": "evaluate", "purpose": "LLM 评估 第5轮", "model": "deepseek-v4-pro", "round": 5, "decision": "SEARCH|Python后端 技能要求 Django Flask 数据库", "status": "ok", "elapsed_ms": 13895}
+{"ts": "2026-05-21 21:20:19", "node": "search", "purpose": "Tavily 搜索 第6轮", "model": "tavily", "round": 6, "results": 2, "status": "ok", "elapsed_ms": 1355}
+{"ts": "2026-05-21 21:20:21", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 23, "chunks_output": 1, "status": "ok", "elapsed_ms": 708}
+{"ts": "2026-05-21 21:20:21", "node": "evaluate", "purpose": "LLM 评估 第6轮", "model": "deepseek-v4-pro", "round": 6, "decision": "SEARCH|Python后端 任职要求 技能", "status": "ok", "elapsed_ms": 15352}
+{"ts": "2026-05-21 21:20:37", "node": "search", "purpose": "Tavily 搜索 第7轮", "model": "tavily", "round": 7, "results": 5, "status": "ok", "elapsed_ms": 1690}
+{"ts": "2026-05-21 21:20:38", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 28, "chunks_output": 2, "status": "ok", "elapsed_ms": 837}
+{"ts": "2026-05-21 21:20:39", "node": "evaluate", "purpose": "LLM 评估 第7轮", "model": "deepseek-v4-pro", "round": 7, "decision": "SEARCH|Python后端 技能要求", "status": "ok", "elapsed_ms": 4850}
+{"ts": "2026-05-21 21:20:44", "node": "search", "purpose": "Tavily 搜索 第8轮", "model": "tavily", "round": 8, "results": 5, "status": "ok", "elapsed_ms": 637}
+{"ts": "2026-05-21 21:20:45", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 33, "chunks_output": 0, "status": "ok", "elapsed_ms": 30}
+{"ts": "2026-05-21 21:20:45", "node": "evaluate", "purpose": "LLM 评估 第8轮", "model": "deepseek-v4-pro", "round": 8, "decision": "FINISH", "status": "ok", "elapsed_ms": 18417}
+{"ts": "2026-05-21 21:21:03", "node": "extract", "purpose": "LLM 技能提取", "model": "deepseek-v4-pro", "jd_count": 33, "skills_count": 70, "status": "ok", "elapsed_ms": 101470}
+{"ts": "2026-05-21 21:19:13", "node": "trigger_analyze", "purpose": "执行分析工作流", "model": "deepseek-v4-pro+chat", "thread_id": "92cb4bcf-ba55-4b09-aba4-c37f50252549", "job_name": "Python后端", "skills_count": 70, "jd_items": 33, "status": "ok", "elapsed_ms": 211671}
+{"ts": "2026-05-21 21:36:00", "node": "supervise", "purpose": "对话意图路由", "model": "deepseek-chat", "thread_id": "9b2ebf67-0475-4a9f-9615-13a78883dcd7", "intent": "analyze", "status": "ok", "elapsed_ms": 1255}
+{"ts": "2026-05-21 21:36:02", "node": "search", "purpose": "Tavily 搜索 第1轮", "model": "tavily", "round": 1, "results": 5, "status": "ok", "elapsed_ms": 2303}
+{"ts": "2026-05-21 21:36:04", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 5, "chunks_output": 0, "status": "ok", "elapsed_ms": 5}
+{"ts": "2026-05-21 21:36:04", "node": "evaluate", "purpose": "LLM 评估 第1轮", "model": "deepseek-v4-pro", "round": 1, "decision": "SEARCH|Python后端 技能要求", "status": "ok", "elapsed_ms": 7705}
+{"ts": "2026-05-21 21:36:12", "node": "search", "purpose": "Tavily 搜索 第2轮", "model": "tavily", "round": 2, "results": 5, "status": "ok", "elapsed_ms": 846}
+{"ts": "2026-05-21 21:36:13", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 10, "chunks_output": 0, "status": "ok", "elapsed_ms": 10}
+{"ts": "2026-05-21 21:36:13", "node": "evaluate", "purpose": "LLM 评估 第2轮", "model": "deepseek-v4-pro", "round": 2, "decision": "SEARCH|Python后端 Django Flask MySQL", "status": "ok", "elapsed_ms": 7981}
+{"ts": "2026-05-21 21:36:21", "node": "search", "purpose": "Tavily 搜索 第3轮", "model": "tavily", "round": 3, "results": 2, "status": "ok", "elapsed_ms": 1391}
+{"ts": "2026-05-21 21:36:22", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 12, "chunks_output": 1, "status": "ok", "elapsed_ms": 999}
+{"ts": "2026-05-21 21:36:23", "node": "evaluate", "purpose": "LLM 评估 第3轮", "model": "deepseek-v4-pro", "round": 3, "decision": "SEARCH|Python后端 数据库 缓存 微服务", "status": "ok", "elapsed_ms": 8965}
+{"ts": "2026-05-21 21:36:32", "node": "search", "purpose": "Tavily 搜索 第4轮", "model": "tavily", "round": 4, "results": 5, "status": "ok", "elapsed_ms": 2030}
+{"ts": "2026-05-21 21:36:34", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 17, "chunks_output": 5, "status": "ok", "elapsed_ms": 979}
+{"ts": "2026-05-21 21:36:35", "node": "evaluate", "purpose": "LLM 评估 第4轮", "model": "deepseek-v4-pro", "round": 4, "decision": "SEARCH|Python后端", "status": "ok", "elapsed_ms": 6367}
+{"ts": "2026-05-21 21:36:41", "node": "search", "purpose": "Tavily 搜索 第5轮", "model": "tavily", "round": 5, "results": 5, "status": "ok", "elapsed_ms": 599}
+{"ts": "2026-05-21 21:36:42", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 22, "chunks_output": 0, "status": "ok", "elapsed_ms": 19}
+{"ts": "2026-05-21 21:36:42", "node": "evaluate", "purpose": "LLM 评估 第5轮", "model": "deepseek-v4-pro", "round": 5, "decision": "FINISH", "status": "ok", "elapsed_ms": 4413}
+{"ts": "2026-05-21 21:36:46", "node": "extract", "purpose": "LLM 提取 22条JD (6批并行)", "model": "deepseek-v4-pro", "jd_count": 22, "batches": 6, "skills_count": 46, "parallel_speedup": "38308ms total", "status": "ok", "elapsed_ms": 38308}
+{"ts": "2026-05-21 21:36:02", "node": "trigger_analyze", "purpose": "执行分析工作流", "model": "deepseek-v4-pro+chat", "thread_id": "9b2ebf67-0475-4a9f-9615-13a78883dcd7", "job_name": "Python后端", "skills_count": 46, "jd_items": 22, "status": "ok", "elapsed_ms": 82997}
+{"ts": "2026-05-21 21:45:17", "node": "supervise", "purpose": "对话意图路由", "model": "deepseek-chat", "thread_id": "e0456282-261f-4d8f-b5ff-e51d3e3c7aa0", "intent": "analyze", "status": "ok", "elapsed_ms": 717}
+{"ts": "2026-05-21 21:45:17", "node": "search", "purpose": "Tavily 搜索 第1轮", "model": "tavily", "round": 1, "results": 5, "status": "ok", "elapsed_ms": 4097}
+{"ts": "2026-05-21 21:45:21", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 5, "chunks_output": 4, "status": "ok", "elapsed_ms": 1221}
+{"ts": "2026-05-21 21:45:23", "node": "evaluate", "purpose": "LLM 评估 第1轮", "model": "deepseek-chat", "round": 1, "decision": "SEARCH|Java开发 技能要求 技术栈 详细", "status": "ok", "elapsed_ms": 820}
+{"ts": "2026-05-21 21:45:23", "node": "search", "purpose": "Tavily 搜索 第2轮", "model": "tavily", "round": 2, "results": 5, "status": "ok", "elapsed_ms": 2409}
+{"ts": "2026-05-21 21:45:26", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 10, "chunks_output": 3, "status": "ok", "elapsed_ms": 742}
+{"ts": "2026-05-21 21:45:27", "node": "evaluate", "purpose": "LLM 评估 第2轮", "model": "deepseek-chat", "round": 2, "decision": "SEARCH|Java开发 技能要求 技术栈", "status": "ok", "elapsed_ms": 677}
+{"ts": "2026-05-21 21:45:27", "node": "search", "purpose": "Tavily 搜索 第3轮", "model": "tavily", "round": 3, "results": 5, "status": "ok", "elapsed_ms": 1404}
+{"ts": "2026-05-21 21:45:29", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 15, "chunks_output": 1, "status": "ok", "elapsed_ms": 695}
+{"ts": "2026-05-21 21:45:29", "node": "evaluate", "purpose": "LLM 评估 第3轮", "model": "deepseek-chat", "round": 3, "decision": "SEARCH|Java开发 技能要求 详细", "status": "ok", "elapsed_ms": 935}
+{"ts": "2026-05-21 21:45:30", "node": "search", "purpose": "Tavily 搜索 第4轮", "model": "tavily", "round": 4, "results": 5, "status": "ok", "elapsed_ms": 2156}
+{"ts": "2026-05-21 21:45:33", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 20, "chunks_output": 2, "status": "ok", "elapsed_ms": 729}
+{"ts": "2026-05-21 21:45:33", "node": "evaluate", "purpose": "LLM 评估 第4轮", "model": "deepseek-chat", "round": 4, "decision": "SEARCH|Java开发 技能要求 框架 数据库 中间件", "status": "ok", "elapsed_ms": 891}
+{"ts": "2026-05-21 21:45:34", "node": "search", "purpose": "Tavily 搜索 第5轮", "model": "tavily", "round": 5, "results": 5, "status": "ok", "elapsed_ms": 7037}
+{"ts": "2026-05-21 21:45:41", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 25, "chunks_output": 59, "status": "ok", "elapsed_ms": 6373}
+{"ts": "2026-05-21 21:45:48", "node": "evaluate", "purpose": "LLM 评估 第5轮", "model": "deepseek-chat", "round": 5, "decision": "FINISH", "status": "ok", "elapsed_ms": 1016}
+{"ts": "2026-05-21 21:45:49", "node": "extract", "purpose": "LLM 提取 25条JD (7批并行)", "model": "deepseek-v4-pro", "jd_count": 25, "batches": 7, "skills_count": 61, "parallel_speedup": "111114ms total", "status": "ok", "elapsed_ms": 111114}
+{"ts": "2026-05-21 21:45:17", "node": "trigger_analyze", "purpose": "执行分析工作流", "model": "deepseek-v4-pro+chat", "thread_id": "e0456282-261f-4d8f-b5ff-e51d3e3c7aa0", "job_name": "Java开发", "skills_count": 61, "jd_items": 25, "status": "ok", "elapsed_ms": 142383}
+{"ts": "2026-05-21 21:56:49", "node": "supervise", "purpose": "对话意图路由", "model": "deepseek-chat", "thread_id": "b96c9978-c4a7-4c68-b827-c74e24b14ab5", "intent": "analyze", "tokens_prompt": 203, "tokens_completion": 5, "status": "ok", "elapsed_ms": 718}
+{"ts": "2026-05-21 21:56:50", "node": "search", "purpose": "Tavily 搜索 第1轮", "model": "tavily", "round": 1, "results": 4, "status": "ok", "elapsed_ms": 2523}
+{"ts": "2026-05-21 21:56:52", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 4, "chunks_output": 1, "status": "ok", "elapsed_ms": 963}
+{"ts": "2026-05-21 21:56:53", "node": "evaluate", "purpose": "LLM 评估 第1轮", "model": "deepseek-chat", "round": 1, "decision": "SEARCH|Python后端 岗位职责 技能要求", "tokens_prompt": 300, "tokens_completion": 11, "status": "ok", "elapsed_ms": 657}
+{"ts": "2026-05-21 21:56:54", "node": "search", "purpose": "Tavily 搜索 第2轮", "model": "tavily", "round": 2, "results": 5, "status": "ok", "elapsed_ms": 1345}
+{"ts": "2026-05-21 21:56:55", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 9, "chunks_output": 0, "status": "ok", "elapsed_ms": 10}
+{"ts": "2026-05-21 21:56:55", "node": "evaluate", "purpose": "LLM 评估 第2轮", "model": "deepseek-chat", "round": 2, "decision": "SEARCH|Python后端 技能要求 详细", "tokens_prompt": 393, "tokens_completion": 10, "status": "ok", "elapsed_ms": 883}
+{"ts": "2026-05-21 21:56:56", "node": "search", "purpose": "Tavily 搜索 第3轮", "model": "tavily", "round": 3, "results": 5, "status": "ok", "elapsed_ms": 1625}
+{"ts": "2026-05-21 21:56:58", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 14, "chunks_output": 3, "status": "ok", "elapsed_ms": 935}
+{"ts": "2026-05-21 21:56:59", "node": "evaluate", "purpose": "LLM 评估 第3轮", "model": "deepseek-chat", "round": 3, "decision": "SEARCH|Python后端 岗位职责 技能要求 详细", "tokens_prompt": 385, "tokens_completion": 13, "status": "ok", "elapsed_ms": 706}
+{"ts": "2026-05-21 21:56:59", "node": "search", "purpose": "Tavily 搜索 第4轮", "model": "tavily", "round": 4, "results": 5, "status": "ok", "elapsed_ms": 1549}
+{"ts": "2026-05-21 21:57:01", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 19, "chunks_output": 1, "status": "ok", "elapsed_ms": 812}
+{"ts": "2026-05-21 21:57:02", "node": "evaluate", "purpose": "LLM 评估 第4轮", "model": "deepseek-chat", "round": 4, "decision": "SEARCH|Python后端 岗位职责 技能要求", "tokens_prompt": 391, "tokens_completion": 11, "status": "ok", "elapsed_ms": 876}
+{"ts": "2026-05-21 21:57:03", "node": "search", "purpose": "Tavily 搜索 第5轮", "model": "tavily", "round": 5, "results": 5, "status": "ok", "elapsed_ms": 525}
+{"ts": "2026-05-21 21:57:03", "node": "store_jd", "purpose": "JD 入库 + embedding", "model": "dashscope-v4", "jd_input": 24, "chunks_output": 0, "status": "ok", "elapsed_ms": 22}
+{"ts": "2026-05-21 21:57:03", "node": "evaluate", "purpose": "LLM 评估 第5轮", "model": "deepseek-chat", "round": 5, "decision": "FINISH", "tokens_prompt": 393, "tokens_completion": 2, "status": "ok", "elapsed_ms": 699}
+{"ts": "2026-05-21 21:57:04", "node": "extract", "purpose": "LLM 提取 24条JD (6批并行)", "model": "deepseek-v4-pro", "jd_count": 24, "batches": 6, "skills_count": 66, "tokens_prompt": 2008, "tokens_completion": 5354, "parallel_speedup": "97025ms total", "status": "ok", "elapsed_ms": 97025}
+{"ts": "2026-05-21 21:56:50", "node": "trigger_analyze", "purpose": "执行分析工作流", "model": "deepseek-v4-pro+chat", "thread_id": "b96c9978-c4a7-4c68-b827-c74e24b14ab5", "job_name": "Python后端", "skills_count": 66, "jd_items": 24, "status": "ok", "elapsed_ms": 111227}
