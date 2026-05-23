@@ -23,13 +23,13 @@ class Formatter(logging.Formatter):
         parts = name.split(".")
         short = ".".join(parts[-2:]) if len(parts) >= 2 else name
 
-        icons = {"DEBUG": "·", "INFO": "✓", "WARNING": "⚡", "ERROR": "✗", "CRITICAL": "☠"}
-        icon = icons.get(record.levelname, "·")
+        icons = {"DEBUG": ".", "INFO": "+", "WARNING": "!", "ERROR": "x", "CRITICAL": "X"}
+        icon = icons.get(record.levelname, ".")
 
         prefix = f"{COLORS['DIM']}{now}{reset} {short:<22} {color}{icon} {record.levelname:<7}{reset}"
         msg = f"{color}{record.getMessage()}{reset}"
 
-        line = f"{prefix}│ {msg}"
+        line = f"{prefix}| {msg}"
         if record.exc_info and record.exc_info[1]:
             line += f"\n{COLORS['ERROR']}{self.formatException(record.exc_info)}{reset}"
         return line
