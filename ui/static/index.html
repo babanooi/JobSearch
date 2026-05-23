@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JobLab · AI 求职技能情报平台</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- 星空粒子背景 -->
+<canvas id="starCanvas"></canvas>
+
+<!-- ═══ 左侧图标导航 (64px) ═══ -->
+<nav id="navBar">
+  <div class="nav-logo">JL</div>
+  <div class="nav-icons">
+    <button class="nav-icon active" data-view="chat" title="智能对话">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    </button>
+    <button class="nav-icon" data-view="radar" title="技能雷达">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+    </button>
+    <button class="nav-icon" data-view="research" title="深度研究">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    </button>
+  </div>
+  <div class="nav-bottom">
+    <button class="nav-icon" data-view="user" title="用户中心">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    </button>
+  </div>
+</nav>
+
+<!-- ═══ 会话列表栏 (220px) ═══ -->
+<aside id="sessionPanel">
+  <div class="session-header">
+    <span class="session-title">对话</span>
+    <button id="btnNewChat" class="btn-new-chat" title="新对话">+</button>
+  </div>
+  <div class="session-list" id="convList"></div>
+</aside>
+
+<!-- ═══ 主内容区 ═══ -->
+<main id="mainContent">
+  <!-- 视图: 智能对话 -->
+  <div id="viewChat" class="view active">
+    <div id="messageList"></div>
+    <div id="rankingViewChat" class="ranking-inline" style="display:none"></div>
+    <div id="inputArea">
+      <input type="text" id="chatInput" placeholder="输入消息，Enter 发送，Shift+Enter 换行" autocomplete="off" />
+      <button id="btnSend">发送</button>
+    </div>
+  </div>
+
+  <!-- 视图: 技能雷达 -->
+  <div id="viewRadar" class="view">
+    <div class="radar-top">
+      <div class="radar-search">
+        <input type="text" id="radarInput" placeholder="输入岗位名称，查看技能全景..." autocomplete="off" />
+        <button id="btnRadarSearch">分析</button>
+      </div>
+      <div class="radar-tags-toggle" id="radarTagsToggle">
+        <span class="tags-toggle-label">已分析岗位</span>
+        <svg class="tags-toggle-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="radar-quick-tags collapsed" id="radarQuickTags"></div>
+    </div>
+    <div class="radar-body" id="radarBody">
+      <div class="radar-empty">◇ 输入岗位名称，探索技能全景</div>
+    </div>
+  </div>
+
+  <!-- 视图: 深度研究 -->
+  <div id="viewResearch" class="view">
+    <div class="research-top">
+      <textarea id="researchInput" placeholder="描述你想研究的内容，例如：帮我全面分析深圳AI大模型方向的求职情况" rows="2"></textarea>
+      <button id="btnResearch">开始研究</button>
+    </div>
+    <div class="research-timeline" id="researchTimeline"></div>
+    <div class="research-body" id="researchBody"></div>
+  </div>
+
+  <!-- 视图: 用户中心 -->
+  <div id="viewUser" class="view">
+    <div class="user-hero">
+      <div class="user-avatar" id="userAvatar">U</div>
+      <div>
+        <div class="user-name" id="userName"></div>
+        <div class="user-meta" id="userMeta"></div>
+      </div>
+    </div>
+    <div class="user-stats" id="userStats"></div>
+    <div class="user-switch-section">
+      <div class="section-title">切换用户</div>
+      <div class="user-switch-list" id="userSwitchList"></div>
+      <button class="btn-switch-add" id="btnAddUser">+ 创建新用户</button>
+    </div>
+  </div>
+</main>
+
+<!-- ═══ 情报面板 (260px) ═══ -->
+<aside id="insightPanel">
+  <div id="insightContent">
+    <div class="insight-empty">完成分析后，情报将在此展示</div>
+  </div>
+</aside>
+
+<!-- Toast -->
+<div id="toastContainer"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

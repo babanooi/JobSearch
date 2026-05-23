@@ -1,0 +1,310 @@
+/* ═══════════════════════════════════════════════════
+   JobLab · 暗夜星图 SPA
+   视图切换 / 对话 / 雷达 / 研究 / 用户中心
+   ═══════════════════════════════════════════════════ */
+
+// ── 星空粒子 ──
+(function stars(){
+  const c=document.getElementById('starCanvas'),ctx=c.getContext('2d');
+  let w,h,particles=[];
+  function resize(){w=c.width=window.innerWidth;h=c.height=window.innerHeight;}
+  resize();window.addEventListener('resize',resize);
+  for(let i=0;i<80;i++)particles.push({x:Math.random()*w,y:Math.random()*h,r:Math.random()*1.2+0.3,a:Math.random()*0.5+0.2,s:Math.random()*0.3+0.1});
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    for(const p of particles){
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(255,255,255,${p.a})`;ctx.fill();
+      p.y-=p.s;if(p.y<-5){p.y=h+5;p.x=Math.random()*w;}
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ── 工具 ──
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+function fmt(s,id){
+  return s
+    .replace(/\n/g,'<br>')
+    .replace(/\[(\d+)\]/g,'<sup class="cite-badge" data-cite="$1">[$1]</sup>')
+    .replace(/~~([^~]+)~~/g,'<del class="unverified">$1</del>');
+}
+
+// ── 状态 ──
+let threadId=crypto.randomUUID(),userId=parseInt(localStorage.getItem('js_user_id')||'0');
+let currentView='chat';
+let allMessages=[];
+
+// ── API ──
+const api={
+  async chat(msg,tid){const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,thread_id:tid,user_id:userId})});return r.json();},
+  async conversations(uid){const r=await fetch('/conversations?user_id='+uid);const d=await r.json();return d.conversations||[];},
+  async analyzedJobs(){const r=await fetch('/skill_rank/_jobs');const d=await r.json();return d.jobs||[];},
+  async skillRank(job,n=15){const r=await fetch('/skill_rank/'+encodeURIComponent(job)+'?top_n='+n);return r.json();},
+  async convMsgs(tid){const r=await fetch('/conversation/'+tid);const d=await r.json();return d.messages||[];},
+  async stats(){const r=await fetch('/stats');return r.json();},
+};
+
+// ── DOM ──
+const $=id=>document.getElementById(id);
+const el={
+  chatInput:$('chatInput'),btnSend:$('btnSend'),msgList:$('messageList'),
+  convList:$('convList'),btnNewChat:$('btnNewChat'),
+  radarInput:$('radarInput'),btnRadarSearch:$('btnRadarSearch'),radarQuickTags:$('radarQuickTags'),radarBody:$('radarBody'),
+  researchInput:$('researchInput'),btnResearch:$('btnResearch'),researchTimeline:$('researchTimeline'),researchBody:$('researchBody'),
+  userAvatar:$('userAvatar'),userName:$('userName'),userMeta:$('userMeta'),userStats:$('userStats'),
+  insightContent:$('insightContent'),toastContainer:$('toastContainer'),
+};
+
+// ── 视图切换 ──
+function switchView(v){
+  currentView=v;
+  document.querySelectorAll('.nav-icon').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+  document.querySelectorAll('.view').forEach(vw=>vw.classList.remove('active'));
+  const tgt=document.getElementById(v==='chat'?'viewChat':v==='radar'?'viewRadar':v==='research'?'viewResearch':'viewUser');
+  if(tgt)tgt.classList.add('active');
+  if(v==='radar')loadRadarQuickTags();
+  if(v==='user')loadUserCenter();
+}
+document.querySelectorAll('.nav-icon').forEach(b=>b.addEventListener('click',()=>switchView(b.dataset.view)));
+
+// ── Toast ──
+function toast(msg){const d=document.createElement('div');d.className='toast';d.textContent=msg;el.toastContainer.appendChild(d);setTimeout(()=>{d.style.opacity='0';setTimeout(()=>d.remove(),300);},3000);}
+
+// ═══════════════════════════════════════════════
+// 视图1: 智能对话
+// ═══════════════════════════════════════════════
+async function sendMessage(){
+  const text=el.chatInput.value.trim();if(!text)return;
+  el.chatInput.value='';el.btnSend.disabled=true;
+  addMsg('user',text);
+  const loadDiv=addLoading();
+  try{
+    const result=await api.chat(text,threadId);
+    loadDiv.remove();
+    if(result.response.includes('共完成')&&result.knowledge?.length){
+      renderResearchInline(result.response,result.knowledge);
+    }else{
+      addMsg('assistant',fmt(result.response));
+    }
+    if(result.thread_id)threadId=result.thread_id;
+    allMessages.push({role:'user',content:text},{role:'assistant',content:result.response});
+    saveMsgs();
+    refreshSidebar();
+    updateInsight(result);
+  }catch(e){loadDiv.remove();addMsg('assistant','请求出错: '+e.message);}
+  el.btnSend.disabled=false;el.chatInput.focus();
+}
+
+function addMsg(role,content){
+  const d=document.createElement('div');d.className='msg msg-'+role;d.innerHTML=content;el.msgList.appendChild(d);el.msgList.scrollTop=el.msgList.scrollHeight;
+}
+function addLoading(){
+  const d=document.createElement('div');d.className='msg-loading';el.msgList.appendChild(d);el.msgList.scrollTop=el.msgList.scrollHeight;return d;
+}
+function renderResearchInline(summary,cards){
+  const c=document.createElement('div');c.className='research-container';
+  c.innerHTML='<div class="research-header">◇ 求职研究报告</div><div class="research-grid"></div>';
+  const grid=c.querySelector('.research-grid');
+  const cats={技能:'skill',薪资:'salary',公司:'company',面试:'interview'};
+  cards.forEach((card,i)=>{
+    const lines=card.split('\n'),title=lines[0].replace('## ',''),items=lines.filter(l=>l.startsWith('- ')),src=lines.find(l=>l.startsWith('*'));
+    const cat=Object.entries(cats).find(([k])=>title.includes(k))?.[1]||'default';
+    const elCard=document.createElement('div');elCard.className='research-card cat-'+cat;elCard.style.animationDelay=(i*0.08)+'s';
+    elCard.innerHTML='<div class="rc-title">'+esc(title)+'</div><div class="rc-items">'+items.map(it=>'<span class="rc-item">'+esc(it.replace('- ',''))+'</span>').join('')+'</div>'+(src?'<div class="rc-source">'+esc(src.replace(/\*/g,''))+'</div>':'');
+    grid.appendChild(elCard);
+  });
+  el.msgList.appendChild(c);el.msgList.scrollTop=el.msgList.scrollHeight;
+}
+function saveMsgs(){try{localStorage.setItem('msgs_'+threadId,JSON.stringify(allMessages));}catch(_){}}
+function loadMsgs(){try{const r=localStorage.getItem('msgs_'+threadId);return r?JSON.parse(r):[];}catch(_){return[];}}
+
+async function switchConv(tid){
+  saveMsgs();threadId=tid;el.msgList.innerHTML='';
+  allMessages=loadMsgs();
+  if(!allMessages.length){allMessages=await api.convMsgs(tid);saveMsgs();}
+  allMessages.forEach(m=>addMsg(m.role,fmt(m.content)));
+  refreshSidebar();
+}
+
+function updateInsight(result){
+  if(!result||!result.knowledge)return;
+  let h='<div style="font-weight:600;font-size:0.72rem;margin-bottom:0.5rem;">情报</div>';
+  result.knowledge.slice(0,3).forEach(k=>{h+='<div style="margin-bottom:0.4rem;font-size:0.65rem;">'+k.substring(0,150)+'</div>';});
+  el.insightContent.innerHTML=h;
+}
+
+// ═══════════════════════════════════════════════
+// 视图2: 技能雷达
+// ═══════════════════════════════════════════════
+async function loadRadarQuickTags(){
+  const jobs=await api.analyzedJobs();if(!jobs.length)return;
+  el.radarQuickTags.innerHTML=jobs.slice(0,8).map(j=>'<span class="quick-tag" data-job="'+esc(j)+'">'+esc(j)+'</span>').join('');
+  el.radarQuickTags.querySelectorAll('.quick-tag').forEach(t=>t.addEventListener('click',()=>{el.radarInput.value=t.dataset.job;runRadar();}));
+}
+async function runRadar(){
+  const job=el.radarInput.value.trim();if(!job)return;
+  el.radarBody.style.alignItems='center';el.radarBody.style.justifyContent='center';
+  el.radarBody.innerHTML='<div class="msg-loading"></div>';
+  const result=await fetch('/skill_rank/'+encodeURIComponent(job)+'?top_n=12');
+  const resData=await result.json();
+  const skills=resData.data||[];
+  const total=resData.total_jds||0;
+  const lastUpdate=resData.last_update||'';
+  if(!skills.length){el.radarBody.style.alignItems='center';el.radarBody.style.justifyContent='center';el.radarBody.innerHTML='<div class="radar-empty">未找到该岗位数据，先在对话中分析它</div>';return;}
+  const max=skills[0]?.count||1;
+  let h='<div class="radar-results"><div class="radar-chart-container"><canvas id="radarCanvas" width="240" height="240"></canvas></div><div class="radar-ranking"><div class="radar-job-title">'+esc(job)+' 技能雷达</div>';
+  skills.forEach((s,i)=>{
+    const count=Number(s.count)||0;
+    const pct=max>0?Math.min(Math.round(count/max*100),100):0;
+    const cls=pct>60?'hot':pct>30?'warm':'cool';
+    const trend='flat';
+    const trendIcon={up:'↑',down:'↓',flat:'→'},trendCls={up:'up',down:'down',flat:'flat'};
+    h+='<div class="rank-row-radar"><span class="rank-num">#'+(i+1)+'</span><span class="rank-skill">'+esc(s.skill)+'</span><span class="rank-bar-wrap"><span class="rank-bar-inner '+cls+'" style="width:'+pct+'%"></span></span><span class="rank-count-text">'+count+'次</span><span class="rank-trend '+trendCls[trend]+'">'+trendIcon[trend]+'</span></div>';
+  });
+  h+='</div></div>';
+  // 数据来源：total_jds>0 才展示具体数字，否则不展示
+  if(total||lastUpdate){
+    const parts=[];
+    if(total)parts.push('基于 <b>'+total+'</b> 条JD');
+    if(lastUpdate)parts.push('更新于 '+lastUpdate);
+    h+='<div class="radar-source-bar">'+parts.join(' · ')+'</div>';
+  }
+  el.radarBody.innerHTML=h;
+  el.radarBody.style.alignItems='flex-start';el.radarBody.style.justifyContent='flex-start';
+  drawRadarChart(skills.slice(0,8),max);
+}
+function drawRadarChart(skills,max){
+  const cv=document.getElementById('radarCanvas');if(!cv)return;
+  const ctx=cv.getContext('2d'),cx=120,cy=120,r=90,n=skills.length;
+  ctx.clearRect(0,0,240,240);
+  // 网格
+  for(let l=1;l<=4;l++){ctx.beginPath();for(let i=0;i<n;i++){const a=Math.PI*2/n*i-Math.PI/2;const x=cx+Math.cos(a)*r*l/4,y=cy+Math.sin(a)*r*l/4;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.closePath();ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.stroke();}
+  // 轴线
+  for(let i=0;i<n;i++){const a=Math.PI*2/n*i-Math.PI/2;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.stroke();}
+  // 数据区域
+  ctx.beginPath();
+  for(let i=0;i<n;i++){const v=skills[i].count/max,a=Math.PI*2/n*i-Math.PI/2,x=cx+Math.cos(a)*r*v,y=cy+Math.sin(a)*r*v;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+  ctx.closePath();ctx.fillStyle='rgba(59,130,246,0.12)';ctx.fill();ctx.strokeStyle='#3b82f6';ctx.lineWidth=1.5;ctx.stroke();
+  // 顶点 & 标签
+  for(let i=0;i<n;i++){const v=skills[i].count/max,a=Math.PI*2/n*i-Math.PI/2,x=cx+Math.cos(a)*r*v,y=cy+Math.sin(a)*r*v;ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fillStyle='#3b82f6';ctx.fill();const lx=cx+Math.cos(a)*(r+20),ly=cy+Math.sin(a)*(r+20);ctx.fillStyle='#e8eaed';ctx.font='9px Inter,Noto Sans SC';ctx.textAlign='center';ctx.fillText(skills[i].skill.slice(0,6),lx,ly);}
+}
+el.btnRadarSearch.addEventListener('click',runRadar);
+el.radarInput.addEventListener('keydown',e=>{if(e.key==='Enter')runRadar();});
+
+// ── 雷达标签折叠 ──
+$('radarTagsToggle').addEventListener('click',()=>{
+  const tags=$('radarQuickTags');
+  const toggle=$('radarTagsToggle');
+  tags.classList.toggle('collapsed');
+  toggle.classList.toggle('open');
+});
+
+// ═══════════════════════════════════════════════
+// 视图3: 深度研究
+// ═══════════════════════════════════════════════
+el.btnResearch.addEventListener('click',async()=>{
+  const text=el.researchInput.value.trim();if(!text)return;
+  el.researchTimeline.innerHTML='<span style="color:var(--green)">拆解需求</span> → <span style="color:var(--blue)">并行执行中...</span> → 聚合结果';
+  el.researchBody.innerHTML='<div class="msg-loading"></div>';
+  try{
+    const result=await api.chat(text,threadId);
+    if(result.knowledge?.length){
+      el.researchTimeline.innerHTML='<span style="color:var(--green)">拆解需求</span> → <span style="color:var(--green)">并行执行</span> → <span style="color:var(--green)">聚合结果</span>';
+      const cats={技能:'skill',薪资:'salary',公司:'company',面试:'interview'};
+      let h='<div class="research-grid">';
+      result.knowledge.forEach((card,i)=>{
+        const lines=card.split('\n'),title=lines[0].replace('## ',''),items=lines.filter(l=>l.startsWith('- ')),src=lines.find(l=>l.startsWith('*'));
+        const cat=Object.entries(cats).find(([k])=>title.includes(k))?.[1]||'default';
+        h+='<div class="research-card cat-'+cat+'" style="animation-delay:'+(i*0.08)+'s">'
+          +'<div class="rc-title">'+esc(title)+'</div>'
+          +'<div class="rc-items">'+items.map(it=>'<span class="rc-item">'+esc(it.replace('- ',''))+'</span>').join('')+'</div>'
+          +(src?'<div class="rc-source">'+esc(src.replace(/\*/g,''))+'</div>':'')
+          +'</div>';
+      });
+      h+='</div>';
+      el.researchBody.innerHTML=h;
+    }else{
+      el.researchBody.innerHTML='<div class="radar-empty">未获取到研究结果</div>';
+    }
+    updateInsight(result);
+  }catch(e){
+    el.researchBody.innerHTML='<div class="radar-empty">请求出错: '+esc(e.message)+'</div>';
+  }
+});
+el.researchInput.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();el.btnResearch.click();}});
+
+// ═══════════════════════════════════════════════
+// 视图4: 用户中心
+// ═══════════════════════════════════════════════
+async function loadUserCenter(){
+  const name=localStorage.getItem('js_username')||('用户_'+threadId.slice(0,8));
+  el.userName.textContent=name;el.userAvatar.textContent=name[0].toUpperCase();
+  el.userMeta.textContent='用户ID: '+userId+' · ID不会因刷新而改变';
+  // 统计
+  const convs=await api.conversations(userId),jobs=await api.analyzedJobs(),s=await api.stats();
+  el.userStats.innerHTML='<div class="stat-card"><div class="stat-num">'+convs.length+'</div><div class="stat-label">对话数</div></div><div class="stat-card"><div class="stat-num">'+jobs.length+'</div><div class="stat-label">分析岗位</div></div><div class="stat-card"><div class="stat-num">'+(s.skill_count||0)+'</div><div class="stat-label">技能库</div></div><div class="stat-card"><div class="stat-num">'+(s.jd_count||0)+'</div><div class="stat-label">JD总量</div></div>';
+  // 用户切换列表
+  loadUserSwitchList();
+}
+async function loadUserSwitchList(){
+  const list=el.userSwitchList||$('userSwitchList');
+  if(!list)return;
+  let users=[];
+  try{const r=await fetch('/users');const d=await r.json();users=d.users||[];}catch(_){}
+  const saved=JSON.parse(localStorage.getItem('js_saved_users')||'[]');
+  saved.forEach(s=>{if(!users.find(u=>u.id===s.id))users.push(s);});
+  list.innerHTML=users.map(u=>'<div class="user-switch-item'+(u.id===userId?' current':'')+'" data-uid="'+u.id+'"><span>'+esc(u.username)+'</span><span class="switch-dot"></span></div>').join('');
+  list.querySelectorAll('.user-switch-item').forEach(item=>{item.addEventListener('click',()=>switchUser(parseInt(item.dataset.uid)));});
+}
+async function switchUser(uid){
+  if(uid===userId)return;
+  saveMsgs();
+  userId=uid;localStorage.setItem('js_user_id',String(uid));
+  const saved=JSON.parse(localStorage.getItem('js_saved_users')||'[]');
+  const found=saved.find(u=>u.id===uid);
+  if(found)localStorage.setItem('js_username',found.username);
+  threadId=crypto.randomUUID();allMessages=[];el.msgList.innerHTML='';
+  refreshSidebar();loadUserCenter();toast('已切换到 '+ (found?found.username:('用户'+uid)));
+}
+$('btnAddUser').addEventListener('click',async()=>{
+  const name=prompt('输入新用户名（留空则随机）：');if(name===null)return;
+  const r=await fetch('/user?username='+encodeURIComponent(name||''));
+  const d=await r.json();
+  const saved=JSON.parse(localStorage.getItem('js_saved_users')||'[]');
+  saved.push({id:d.user_id,username:d.username});
+  localStorage.setItem('js_saved_users',JSON.stringify(saved));
+  switchUser(d.user_id);
+});
+
+// ═══════════════════════════════════════════════
+// 侧边栏
+// ═══════════════════════════════════════════════
+async function refreshSidebar(){
+  if(!userId)return;
+  const convs=await api.conversations(userId);
+  el.convList.innerHTML=convs.length?convs.map(c=>'<button class="conv-item'+(c.thread_id===threadId?' active':'')+'" data-tid="'+c.thread_id+'">'+esc(c.title||'未命名')+'</button>').join(''):'<span style="color:var(--text-muted);font-size:0.62rem;padding:0.4rem;">暂无对话</span>';
+  el.convList.querySelectorAll('.conv-item').forEach(b=>b.addEventListener('click',()=>switchConv(b.dataset.tid)));
+}
+
+// ── 事件 ──
+el.btnSend.addEventListener('click',sendMessage);
+el.chatInput.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}});
+el.btnNewChat.addEventListener('click',()=>{saveMsgs();threadId=crypto.randomUUID();allMessages=[];el.msgList.innerHTML='';refreshSidebar();});
+
+// ── 启动 ──
+(async function init(){
+  if(!userId){const r=await fetch('/user');const d=await r.json();userId=d.user_id;localStorage.setItem('js_user_id',String(userId));localStorage.setItem('js_username',d.username);}
+  const msgs=loadMsgs();
+  if(!msgs.length){
+    el.msgList.innerHTML='<div style="text-align:center;margin:auto;padding:2rem;color:var(--text-muted);font-size:0.82rem;line-height:1.8;">'
+      +'<div style="font-size:1.5rem;margin-bottom:0.5rem;">◇</div>'
+      +'<div>欢迎使用 <b style="color:var(--text);">JobLab</b></div>'
+      +'<div style="margin-top:0.3rem;">输入岗位名称开始分析，例如：<span style="color:var(--blue);cursor:pointer;" onclick="document.getElementById(\'chatInput\').value=\'Python后端\';">Python后端</span></div>'
+      +'</div>';
+  }else{
+    msgs.forEach(m=>addMsg(m.role,fmt(m.content)));
+  }
+  refreshSidebar();el.chatInput.focus();
+})();
