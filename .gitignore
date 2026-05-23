@@ -5,3 +5,4 @@ data/checkpoints.db
 data/checkpoints.db-*
 data/chroma_db/
 data/trace.jsonl
+.claude/
