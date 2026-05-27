@@ -10,6 +10,7 @@ from models.database import SessionLocal
 from models.document import JdChunk
 from models.user import Summary, User, Conversation
 from agents.base import get_utility_llm
+from tools.skill_guard import normalize_job_name
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -54,6 +55,7 @@ def search_jd_semantic(query: str, embeddings, top_k: int = 5) -> list[dict]:
 
 def query_skill_rank(job_name: str, top_n: int = 10) -> list[dict]:
     """MySQL 精确查询技能排名"""
+    job_name = normalize_job_name(job_name)
     with SessionLocal() as session:
         rows = session.execute(
             text(

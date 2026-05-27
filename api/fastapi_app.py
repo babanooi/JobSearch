@@ -14,6 +14,7 @@ from graphs.analyze import agent_graph as analyze_graph
 from memory.long_term import (
     list_analyzed_jobs, list_user_conversations, get_or_create_user,
 )
+from tools.skill_guard import normalize_job_name
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -129,6 +130,7 @@ def get_analyzed_jobs():
 # ── 技能排名 ──
 @app.get("/skill_rank/{job_name}")
 def get_skill_rank(job_name: str, top_n: int = 10):
+    job_name = normalize_job_name(job_name)
     logger.info(f"GET /skill_rank/{job_name} top_n={top_n}")
     rank = db.get_skill_rank(job_name, top_n)
     # JD数量 + 更新时间：优先 jd_documents（精确），回退 job_skills.total_jds + last_seen_at
@@ -179,10 +181,11 @@ class JobRequest(BaseModel):
 def analyze_job(request: JobRequest):
     t0 = time.time()
     thread_id = str(uuid.uuid4())
-    logger.info(f"POST /analyze_job job_name={request.job_name} thread_id={thread_id}")
+    job_name = normalize_job_name(request.job_name)
+    logger.info(f"POST /analyze_job job_name={job_name} thread_id={thread_id}")
 
     result = analyze_graph.invoke(
-        {"job_name": request.job_name, "status": "开始执行"},
+        {"job_name": job_name, "status": "开始执行"},
         config={"configurable": {"thread_id": thread_id}},
     )
 

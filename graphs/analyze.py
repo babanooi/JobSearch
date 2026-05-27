@@ -10,6 +10,7 @@ from agents.registry import registry
 from agents.base import get_utility_llm
 from graphs.state import AgentState
 from memory.short_term import create_checkpointer
+from tools.skill_guard import normalize_job_name, normalize_skill_list, clear_skill_cache
 from core.logger import get_logger
 from core.tracer import trace
 
@@ -189,6 +190,9 @@ def skill_reflect_node(state: AgentState) -> AgentState:
             except Exception:
                 filtered.extend(need_review)
 
+    # 语义归一化：将变体匹配到已有标准技能名
+    filtered = normalize_skill_list(filtered, registry.embeddings)
+
     logger.info(
         f">>> skill_reflect: {len(unique)} 去重 → 已知{len(auto_keep)}+LLM保留{len(filtered)-len(auto_keep)} → 最终 {len(filtered)} 个"
     )
@@ -196,7 +200,7 @@ def skill_reflect_node(state: AgentState) -> AgentState:
 
 
 def save_node(state: AgentState) -> AgentState:
-    job_name = state["job_name"]
+    job_name = normalize_job_name(state["job_name"])
     skill_list = state["skill_list"]
     items = state.get("search_raw_items", []) or []
     total_jds = len(items)
@@ -205,6 +209,7 @@ def save_node(state: AgentState) -> AgentState:
     skill_count = Counter(skill_list)
     db.save_skill_list(job_name, skill_count, total_jds=total_jds)
     logger.info(f"<<< save_node 入库完成: {job_name} -> {len(skill_count)} 个不重复技能")
+    clear_skill_cache()  # 有新技能入库，刷新语义缓存
     return {"status": "存储完成"}
 
 
@@ -217,7 +222,7 @@ def store_jd_node(state: AgentState) -> AgentState:
     jd_store = registry.jd_store
     logger.info(f">>> store_jd_node: 入库 {len(items)} 条 JD")
     with trace("store_jd", "JD 入库 + embedding", model="dashscope-v4") as t:
-        chunk_count = jd_store.store_jd(job_name=state["job_name"], jd_items=items)
+        chunk_count = jd_store.store_jd(job_name=normalize_job_name(state["job_name"]), jd_items=items)
         t["jd_input"] = len(items)
         t["chunks_output"] = chunk_count
     logger.info(f"<<< store_jd_node: 入库完成 -> {chunk_count} 个新 chunk")
