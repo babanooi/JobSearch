@@ -2,6 +2,7 @@ import datetime
 from collections import Counter
 from models.database import SessionLocal
 from models.job import JobSkills
+from tools.skill_guard import normalize_job_name
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -11,6 +12,7 @@ class DBTool:
     @staticmethod
     def save_skill_list(job_name: str, skill_list: list[str], total_jds: int = 0):
         """UPSERT 策略：新增技能 INSERT，已有技能 UPDATE 频次+时间戳+样本量，旧技能保留"""
+        job_name = normalize_job_name(job_name)
         with SessionLocal() as db_session:
             try:
                 skill_count = Counter(skill_list)
@@ -52,6 +54,7 @@ class DBTool:
 
     @staticmethod
     def get_skill_rank(job_name: str, top_n: int = 10) -> list[dict]:
+        job_name = normalize_job_name(job_name)
         with SessionLocal() as db_session:
             try:
                 rows = (

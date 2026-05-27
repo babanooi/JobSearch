@@ -15,6 +15,7 @@ from memory.long_term import (
     query_skill_rank, list_analyzed_jobs, match_job_names,
     hybrid_search_with_rerank, save_conversation, load_latest_summary,
 )
+from tools.skill_guard import normalize_job_name
 from core.logger import get_logger
 from core.tracer import trace
 
@@ -217,7 +218,7 @@ def rag_query_node(state: ChatState) -> ChatState:
 def trigger_analyze_node(state: ChatState) -> ChatState:
     pending = state.get("pending_job", "")
     user_input = state["user_input"]
-    job_name = pending or user_input
+    job_name = normalize_job_name(pending or user_input)
     search_query = f"{job_name} 招聘要求 技术栈 技能 岗位职责"
     thread_id = state.get("thread_id", str(uuid.uuid4()))
 

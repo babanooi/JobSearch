@@ -50,7 +50,7 @@ def prune_old_checkpoints(thread_id: str):
 
 def compress_history(messages: list[dict], max_rounds: int = MAX_MESSAGE_ROUNDS) -> dict:
     """
-    滑动窗口 + 摘要压缩（一次 LLM 调用完成过滤+压缩）
+   摘要压缩 滑动窗口 + （一次 LLM 调用完成过滤+压缩）
     Prompt 中要求 LLM 先忽略无关闲聊，再对求职相关内容进行摘要
     """
     if len(messages) <= max_rounds * 2:
