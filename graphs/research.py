@@ -108,7 +108,7 @@ def parallel_execute_node(state: dict) -> dict:
                 try:
                     items_raw = registry.search_tool.search_job_info(query)
                     items = [r.get("title", r.get("content", "")[:120]) for r in items_raw[:5]]
-                    source = f"Tavily 搜索: {query[:40]}"
+                    source = f"AnySearch 搜索: {query[:40]}"
                 except Exception as e:
                     items = [f"搜索失败: {e}"]
                     source = ""

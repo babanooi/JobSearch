@@ -38,10 +38,5 @@ class Registry:
         )
         self.embeddings = embeddings
 
-    @property
-    def llm(self):
-        """快捷访问 LLM 实例（用于摘要压缩等辅助任务）"""
-        return self.extract_agent.llm
-
 
 registry = Registry()

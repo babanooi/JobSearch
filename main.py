@@ -17,14 +17,6 @@ def cmd_serve():
     uvicorn.run("api.fastapi_app:app", host="0.0.0.0", port=8000, reload=True)
 
 
-def cmd_ui():
-    """启动 Streamlit Chat UI"""
-    from streamlit.web import cli as stcli
-    ui_path = str(Path(__file__).parent / "ui" / "streamlit_app.py")
-    sys.argv = ["streamlit", "run", ui_path]
-    stcli.main()
-
-
 def cmd_analyze(job_name: str):
     """命令行直接分析岗位"""
     from graphs.analyze import agent_graph
@@ -56,7 +48,7 @@ def cmd_doctor():
     """环境自检"""
     checks = {
         "DeepSeek API": bool(settings.DEEPSEEK_API_KEY),
-        "Tavily API": bool(settings.TAVILY_API_KEY),
+        "AnySearch API": bool(settings.ANYSEARCH_API_KEY),
         "Dashscope API": bool(settings.DASHSCOPE_API_KEY),
         "MySQL URL": bool(settings.DATABASE_URL),
     }
@@ -86,7 +78,6 @@ def main():
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("serve", help="启动 FastAPI 服务")
-    sub.add_parser("ui", help="启动 Streamlit Chat UI")
     sub.add_parser("doctor", help="环境自检")
 
     p_analyze = sub.add_parser("analyze", help="命令行分析岗位")
@@ -100,8 +91,6 @@ def main():
 
     if args.command == "serve":
         cmd_serve()
-    elif args.command == "ui":
-        cmd_ui()
     elif args.command == "doctor":
         cmd_doctor()
     elif args.command == "analyze":

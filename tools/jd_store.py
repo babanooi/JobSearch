@@ -15,7 +15,7 @@ def _text_hash(text: str) -> str:
 
 
 def _parse_company(title: str) -> str:
-    """从 Tavily 标题中提取公司名，如 'Java后端 - XX科技有限公司'"""
+    """从搜索标题中提取公司名，如 'Java后端 - XX科技有限公司'"""
     if not title:
         return ""
     for sep in (" - ", "｜", " | ", "·"):

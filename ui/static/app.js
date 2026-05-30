@@ -35,16 +35,53 @@ function fmt(s,id){
 let threadId=crypto.randomUUID(),userId=parseInt(localStorage.getItem('js_user_id')||'0');
 let currentView='chat';
 let allMessages=[];
+const convMessageCache=new Map();
 
 // ── API ──
 const api={
-  async chat(msg,tid){const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,thread_id:tid,user_id:userId})});return r.json();},
+  async chat(msg,tid,signal){const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,thread_id:tid,user_id:userId}),signal});return r.json();},
+  async users(){const r=await fetch('/users');const d=await r.json();return d.users||[];},
+  async deleteUser(uid){const r=await fetch('/user/'+uid,{method:'DELETE'});return r.json();},
+  async deleteConversation(tid){const r=await fetch('/conversation/'+encodeURIComponent(tid)+'?user_id='+userId,{method:'DELETE'});return r.json();},
   async conversations(uid){const r=await fetch('/conversations?user_id='+uid);const d=await r.json();return d.conversations||[];},
   async analyzedJobs(){const r=await fetch('/skill_rank/_jobs');const d=await r.json();return d.jobs||[];},
   async skillRank(job,n=15){const r=await fetch('/skill_rank/'+encodeURIComponent(job)+'?top_n='+n);return r.json();},
   async convMsgs(tid){const r=await fetch('/conversation/'+tid);const d=await r.json();return d.messages||[];},
   async stats(){const r=await fetch('/stats');return r.json();},
 };
+
+function lastThreadKey(uid=userId){return 'last_thread_id_'+uid;}
+function savedUsers(){
+  try{return JSON.parse(localStorage.getItem('js_saved_users')||'[]');}catch(_){return[];}
+}
+function setSavedUsers(users){
+  localStorage.setItem('js_saved_users',JSON.stringify(users));
+}
+function removeSavedUser(uid){
+  setSavedUsers(savedUsers().filter(u=>u.id!==uid));
+}
+function deletedUserIds(){
+  try{return new Set(JSON.parse(localStorage.getItem('js_deleted_user_ids')||'[]'));}catch(_){return new Set();}
+}
+function rememberDeletedUser(uid){
+  const ids=deletedUserIds();
+  ids.add(uid);
+  localStorage.setItem('js_deleted_user_ids',JSON.stringify([...ids]));
+}
+function deletedThreadIds(){
+  try{return new Set(JSON.parse(localStorage.getItem('js_deleted_thread_ids')||'[]'));}catch(_){return new Set();}
+}
+function rememberDeletedThread(tid){
+  const ids=deletedThreadIds();
+  ids.add(tid);
+  localStorage.setItem('js_deleted_thread_ids',JSON.stringify([...ids]));
+}
+async function loadConversationMessages(tid,{fresh=false}={}){
+  if(!fresh&&convMessageCache.has(tid))return convMessageCache.get(tid);
+  const msgs=await api.convMsgs(tid);
+  convMessageCache.set(tid,msgs);
+  return msgs;
+}
 
 // ── DOM ──
 const $=id=>document.getElementById(id);
@@ -80,8 +117,11 @@ async function sendMessage(){
   el.chatInput.value='';el.btnSend.disabled=true;
   addMsg('user',text);
   const loadDiv=addLoading();
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),5*60*1000);  // 5min 超时
   try{
-    const result=await api.chat(text,threadId);
+    const result=await api.chat(text,threadId,controller.signal);
+    clearTimeout(timeout);
     loadDiv.remove();
     if(result.response.includes('共完成')&&result.knowledge?.length){
       renderResearchInline(result.response,result.knowledge);
@@ -90,10 +130,11 @@ async function sendMessage(){
     }
     if(result.thread_id)threadId=result.thread_id;
     allMessages.push({role:'user',content:text},{role:'assistant',content:result.response});
-    saveMsgs();
+    convMessageCache.set(threadId,allMessages);
+    localStorage.setItem(lastThreadKey(),threadId);
     refreshSidebar();
     updateInsight(result);
-  }catch(e){loadDiv.remove();addMsg('assistant','请求出错: '+e.message);}
+  }catch(e){loadDiv.remove();clearTimeout(timeout);addMsg('assistant',e.name==='AbortError'?'分析超时，请稍后重试':'请求出错: '+e.message);}
   el.btnSend.disabled=false;el.chatInput.focus();
 }
 
@@ -117,15 +158,46 @@ function renderResearchInline(summary,cards){
   });
   el.msgList.appendChild(c);el.msgList.scrollTop=el.msgList.scrollHeight;
 }
-function saveMsgs(){try{localStorage.setItem('msgs_'+threadId,JSON.stringify(allMessages));}catch(_){}}
-function loadMsgs(){try{const r=localStorage.getItem('msgs_'+threadId);return r?JSON.parse(r):[];}catch(_){return[];}}
-
 async function switchConv(tid){
-  saveMsgs();threadId=tid;el.msgList.innerHTML='';
-  allMessages=loadMsgs();
-  if(!allMessages.length){allMessages=await api.convMsgs(tid);saveMsgs();}
+  threadId=tid;el.msgList.innerHTML='';allMessages=[];
+  localStorage.setItem(lastThreadKey(),tid);
+  allMessages=await loadConversationMessages(tid,{fresh:true});
+  if(!allMessages.length){
+    localStorage.removeItem(lastThreadKey());
+    threadId=crypto.randomUUID();
+    el.msgList.innerHTML='<div style="text-align:center;margin:auto;padding:2rem;color:var(--text-muted);font-size:0.82rem;">该会话没有可恢复的消息</div>';
+    refreshSidebar();
+    return;
+  }
   allMessages.forEach(m=>addMsg(m.role,fmt(m.content)));
   refreshSidebar();
+}
+async function deleteConversation(tid){
+  if(!tid)return;
+  const row=document.querySelector('.conv-item-wrap[data-tid="'+tid+'"]');
+  if(row)row.remove();
+  rememberDeletedThread(tid);
+  convMessageCache.delete(tid);
+  if(localStorage.getItem(lastThreadKey())===tid)localStorage.removeItem(lastThreadKey());
+
+  const deletingCurrent=tid===threadId;
+  if(deletingCurrent){
+    threadId=crypto.randomUUID();
+    allMessages=[];
+    el.msgList.innerHTML='<div style="text-align:center;margin:auto;padding:2rem;color:var(--text-muted);font-size:0.82rem;line-height:1.8;">'
+      +'<div style="font-size:1.5rem;margin-bottom:0.5rem;">◇</div>'
+      +'<div>新对话已准备好</div>'
+      +'</div>';
+  }
+
+  try{
+    await api.deleteConversation(tid);
+    await refreshSidebar();
+    toast('已删除对话');
+  }catch(e){
+    await refreshSidebar();
+    toast('删除失败: '+e.message);
+  }
 }
 
 function updateInsight(result){
@@ -252,29 +324,72 @@ async function loadUserSwitchList(){
   const list=el.userSwitchList||$('userSwitchList');
   if(!list)return;
   let users=[];
-  try{const r=await fetch('/users');const d=await r.json();users=d.users||[];}catch(_){}
-  const saved=JSON.parse(localStorage.getItem('js_saved_users')||'[]');
+  try{users=await api.users();}catch(_){}
+  const saved=savedUsers();
   saved.forEach(s=>{if(!users.find(u=>u.id===s.id))users.push(s);});
-  list.innerHTML=users.map(u=>'<div class="user-switch-item'+(u.id===userId?' current':'')+'" data-uid="'+u.id+'"><span>'+esc(u.username)+'</span><span class="switch-dot"></span></div>').join('');
+  const deleted=deletedUserIds();
+  users=users.filter(u=>!deleted.has(u.id));
+  list.innerHTML=users.map(u=>'<div class="user-switch-item'+(u.id===userId?' current':'')+'" data-uid="'+u.id+'" data-username="'+esc(u.username)+'"><span class="user-switch-name">'+esc(u.username)+'</span><button class="btn-user-delete" data-uid="'+u.id+'" title="删除用户">×</button></div>').join('');
   list.querySelectorAll('.user-switch-item').forEach(item=>{item.addEventListener('click',()=>switchUser(parseInt(item.dataset.uid)));});
+  list.querySelectorAll('.btn-user-delete').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();deleteUser(parseInt(btn.dataset.uid));}));
 }
 async function switchUser(uid){
   if(uid===userId)return;
-  saveMsgs();
   userId=uid;localStorage.setItem('js_user_id',String(uid));
   const saved=JSON.parse(localStorage.getItem('js_saved_users')||'[]');
   const found=saved.find(u=>u.id===uid);
   if(found)localStorage.setItem('js_username',found.username);
+  convMessageCache.clear();
   threadId=crypto.randomUUID();allMessages=[];el.msgList.innerHTML='';
   refreshSidebar();loadUserCenter();toast('已切换到 '+ (found?found.username:('用户'+uid)));
+}
+async function deleteUser(uid){
+  if(!uid)return;
+  const deletingCurrent=uid===userId;
+  const row=document.querySelector('.user-switch-item[data-uid="'+uid+'"]');
+  if(row)row.remove();
+  rememberDeletedUser(uid);
+  removeSavedUser(uid);
+  localStorage.removeItem(lastThreadKey(uid));
+  convMessageCache.clear();
+  try{
+    const result=await api.deleteUser(uid);
+    if(!result.deleted){
+      toast('用户不存在或已删除');
+    }
+
+    if(deletingCurrent){
+      let users=(await api.users()).filter(u=>!deletedUserIds().has(u.id));
+      if(!users.length){
+        const r=await fetch('/user');
+        const d=await r.json();
+        users=[{id:d.user_id,username:d.username}];
+        localStorage.setItem('js_deleted_user_ids',JSON.stringify([...deletedUserIds()].filter(id=>id!==d.user_id)));
+      }
+      const next=users[0];
+      userId=next.id;
+      localStorage.setItem('js_user_id',String(next.id));
+      localStorage.setItem('js_username',next.username);
+      threadId=crypto.randomUUID();
+      allMessages=[];
+      el.msgList.innerHTML='';
+    }
+
+    await refreshSidebar();
+    await loadUserCenter();
+    toast('已删除用户');
+  }catch(e){
+    await loadUserCenter();
+    toast('删除失败: '+e.message);
+  }
 }
 $('btnAddUser').addEventListener('click',async()=>{
   const name=prompt('输入新用户名（留空则随机）：');if(name===null)return;
   const r=await fetch('/user?username='+encodeURIComponent(name||''));
   const d=await r.json();
-  const saved=JSON.parse(localStorage.getItem('js_saved_users')||'[]');
+  const saved=savedUsers();
   saved.push({id:d.user_id,username:d.username});
-  localStorage.setItem('js_saved_users',JSON.stringify(saved));
+  setSavedUsers(saved);
   switchUser(d.user_id);
 });
 
@@ -284,19 +399,32 @@ $('btnAddUser').addEventListener('click',async()=>{
 async function refreshSidebar(){
   if(!userId)return;
   const convs=await api.conversations(userId);
-  el.convList.innerHTML=convs.length?convs.map(c=>'<button class="conv-item'+(c.thread_id===threadId?' active':'')+'" data-tid="'+c.thread_id+'">'+esc(c.title||'未命名')+'</button>').join(''):'<span style="color:var(--text-muted);font-size:0.62rem;padding:0.4rem;">暂无对话</span>';
+  const deleted=deletedThreadIds();
+  const checked=await Promise.all(convs.map(async c=>({...c,messages:await loadConversationMessages(c.thread_id)})));
+  const visible=checked.filter(c=>c.messages.length>0&&!deleted.has(c.thread_id));
+  el.convList.innerHTML=visible.length?visible.map(c=>'<div class="conv-item-wrap'+(c.thread_id===threadId?' active':'')+'" data-tid="'+c.thread_id+'"><button class="conv-item" data-tid="'+c.thread_id+'">'+esc(c.title||'未命名')+'</button><button class="btn-conv-delete" data-tid="'+c.thread_id+'" title="删除对话">×</button></div>').join(''):'<span style="color:var(--text-muted);font-size:0.62rem;padding:0.4rem;">暂无对话</span>';
   el.convList.querySelectorAll('.conv-item').forEach(b=>b.addEventListener('click',()=>switchConv(b.dataset.tid)));
+  el.convList.querySelectorAll('.btn-conv-delete').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();deleteConversation(b.dataset.tid);}));
 }
 
 // ── 事件 ──
 el.btnSend.addEventListener('click',sendMessage);
 el.chatInput.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}});
-el.btnNewChat.addEventListener('click',()=>{saveMsgs();threadId=crypto.randomUUID();allMessages=[];el.msgList.innerHTML='';refreshSidebar();});
+el.btnNewChat.addEventListener('click',()=>{threadId=crypto.randomUUID();allMessages=[];el.msgList.innerHTML='';localStorage.removeItem(lastThreadKey());refreshSidebar();});
 
 // ── 启动 ──
 (async function init(){
   if(!userId){const r=await fetch('/user');const d=await r.json();userId=d.user_id;localStorage.setItem('js_user_id',String(userId));localStorage.setItem('js_username',d.username);}
-  const msgs=loadMsgs();
+  // 恢复上次 threadId，从后端读消息（后端为唯一权威来源）
+  const lastTid=localStorage.getItem(lastThreadKey());
+  if(lastTid){threadId=lastTid;}
+  const msgs=await loadConversationMessages(threadId,{fresh:true});
+  allMessages=msgs;
+  if(lastTid&&!msgs.length){
+    localStorage.removeItem(lastThreadKey());
+    convMessageCache.delete(lastTid);
+    threadId=crypto.randomUUID();
+  }
   if(!msgs.length){
     el.msgList.innerHTML='<div style="text-align:center;margin:auto;padding:2rem;color:var(--text-muted);font-size:0.82rem;line-height:1.8;">'
       +'<div style="font-size:1.5rem;margin-bottom:0.5rem;">◇</div>'
@@ -304,7 +432,16 @@ el.btnNewChat.addEventListener('click',()=>{saveMsgs();threadId=crypto.randomUUI
       +'<div style="margin-top:0.3rem;">输入岗位名称开始分析，例如：<span style="color:var(--blue);cursor:pointer;" onclick="document.getElementById(\'chatInput\').value=\'Python后端\';">Python后端</span></div>'
       +'</div>';
   }else{
-    msgs.forEach(m=>addMsg(m.role,fmt(m.content)));
+    // 检测中间态：最后一条是用户消息（没有配对 assistant 回复）→ 分析中断
+    const lastMsg=msgs[msgs.length-1];
+    if(lastMsg&&lastMsg.role==='user'){
+      el.msgList.innerHTML='<div style="text-align:center;margin:auto;padding:2rem;color:var(--text-muted);font-size:0.82rem;line-height:1.8;">'
+        +'<div style="font-size:1.5rem;margin-bottom:0.5rem;">⟳</div>'
+        +'<div>上次分析未完成，请重新发送</div>'
+        +'</div>';
+    }else{
+      msgs.forEach(m=>addMsg(m.role,fmt(m.content)));
+    }
   }
   refreshSidebar();el.chatInput.focus();
 })();

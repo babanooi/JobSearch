@@ -13,6 +13,7 @@ from agents.registry import registry
 from graphs.analyze import agent_graph as analyze_graph
 from memory.long_term import (
     list_analyzed_jobs, list_user_conversations, get_or_create_user,
+    delete_user_data, delete_conversation_data,
 )
 from tools.skill_guard import normalize_job_name
 from core.logger import get_logger
@@ -57,6 +58,12 @@ def create_or_get_user(username: str = Query("")):
     name = username or f"用户_{str(uuid.uuid4())[:8]}"
     uid = get_or_create_user(name)
     return {"code": 200, "user_id": uid, "username": name}
+
+
+@app.delete("/user/{user_id}")
+def delete_user(user_id: int):
+    result = delete_user_data(user_id)
+    return {"code": 200, **result}
 
 
 # ── 对话 ──
@@ -109,6 +116,12 @@ def get_conversation_messages(thread_id: str):
     except Exception:
         pass
     return {"code": 200, "messages": []}
+
+
+@app.delete("/conversation/{thread_id}")
+def delete_conversation(thread_id: str, user_id: int = Query(0)):
+    result = delete_conversation_data(thread_id, user_id or None)
+    return {"code": 200, **result}
 
 
 # ── 历史对话 ──

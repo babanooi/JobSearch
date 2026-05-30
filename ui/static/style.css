@@ -81,13 +81,19 @@ body{
 }
 .btn-new-chat:hover{color:var(--blue);border-color:var(--blue);}
 .session-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:2px;}
+.conv-item-wrap{display:flex;align-items:center;border-radius:var(--radius-sm);transition:var(--transition);}
+.conv-item-wrap:hover{background:var(--bg-hover);}
+.conv-item-wrap.active{background:var(--blue-glow);}
 .conv-item{
-  display:block;width:100%;text-align:left;background:transparent;border:none;
-  color:var(--text-dim);font-size:0.72rem;padding:0.5rem 0.6rem;border-radius:var(--radius-sm);
+  display:block;min-width:0;flex:1;text-align:left;background:transparent;border:none;
+  color:var(--text-dim);font-size:0.72rem;padding:0.5rem 0.2rem 0.5rem 0.6rem;border-radius:var(--radius-sm);
   cursor:pointer;transition:var(--transition);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
-.conv-item:hover{background:var(--bg-hover);color:var(--text);}
-.conv-item.active{background:var(--blue-glow);color:var(--blue);}
+.conv-item-wrap:hover .conv-item{color:var(--text);}
+.conv-item-wrap.active .conv-item{color:var(--blue);}
+.btn-conv-delete{width:22px;height:22px;margin-right:0.2rem;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:50%;color:var(--text-muted);font-size:0.95rem;line-height:1;cursor:pointer;opacity:0;transition:var(--transition);flex-shrink:0;}
+.conv-item-wrap:hover .btn-conv-delete,.conv-item-wrap.active .btn-conv-delete{opacity:1;}
+.btn-conv-delete:hover{background:rgba(244,63,94,0.12);color:var(--red);}
 
 /* ═══ 主内容区 ═══ */
 #mainContent{
@@ -281,7 +287,7 @@ cite-warn{color:var(--gold);font-size:0.55rem;margin-left:3px;}
 }
 .stat-num{font-size:1.4rem;font-weight:800;color:var(--text);}
 .stat-label{font-size:0.62rem;color:var(--text-dim);margin-top:0.2rem;text-transform:uppercase;letter-spacing:0.04em;}
-.user-switch-section{margin-bottom:1.2rem;}.section-title{font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-dim);margin-bottom:0.5rem;}.user-switch-list{display:flex;flex-direction:column;gap:3px;margin-bottom:0.5rem;}.user-switch-item{display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0.7rem;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:var(--transition);font-size:0.78rem;}.user-switch-item:hover{border-color:var(--border-active);}.user-switch-item.current{border-color:var(--blue);background:var(--blue-glow);}.user-switch-item.current .switch-dot{background:var(--blue);}.switch-dot{width:8px;height:8px;border-radius:50%;background:var(--text-muted);}.btn-switch-add{background:transparent;border:1px dashed var(--border);border-radius:var(--radius-sm);color:var(--text-dim);font-size:0.7rem;padding:0.4rem;width:100%;cursor:pointer;transition:var(--transition);}.btn-switch-add:hover{border-color:var(--gold);color:var(--gold);}
+.user-switch-section{margin-bottom:1.2rem;}.section-title{font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-dim);margin-bottom:0.5rem;}.user-switch-list{display:flex;flex-direction:column;gap:3px;margin-bottom:0.5rem;}.user-switch-item{display:flex;align-items:center;justify-content:space-between;gap:0.5rem;padding:0.45rem 0.45rem 0.45rem 0.7rem;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:var(--transition);font-size:0.78rem;}.user-switch-item:hover{border-color:var(--border-active);}.user-switch-item.current{border-color:var(--blue);background:var(--blue-glow);}.user-switch-name{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.btn-user-delete{width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:50%;color:var(--text-dim);font-size:1rem;line-height:1;cursor:pointer;transition:var(--transition);flex-shrink:0;}.btn-user-delete:hover{background:rgba(244,63,94,0.12);border-color:rgba(244,63,94,0.35);color:var(--red);}.btn-switch-add{background:transparent;border:1px dashed var(--border);border-radius:var(--radius-sm);color:var(--text-dim);font-size:0.7rem;padding:0.4rem;width:100%;cursor:pointer;transition:var(--transition);}.btn-switch-add:hover{border-color:var(--gold);color:var(--gold);}
 
 /* ═══ 情报面板 (260px) ═══ */
 #insightPanel{
