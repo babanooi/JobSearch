@@ -34,8 +34,8 @@ class Summary(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     thread_id: Mapped[str] = mapped_column(String(36), index=True, comment="关联对话 thread_id")
     summary_text: Mapped[str] = mapped_column(Text, comment="LLM 生成的摘要")
-    start_round: Mapped[int] = mapped_column(Integer, comment="摘要覆盖的起始轮次")
-    end_round: Mapped[int] = mapped_column(Integer, comment="摘要覆盖的结束轮次")
+    start_round: Mapped[int] = mapped_column(Integer, default=0, comment="摘要覆盖的起始轮次")
+    end_round: Mapped[int] = mapped_column(Integer, default=0, comment="摘要覆盖的结束轮次")
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, server_default=func.now(), comment="生成时间"
     )

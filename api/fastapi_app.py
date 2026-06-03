@@ -13,6 +13,7 @@ from agents.registry import registry
 from graphs.analyze import agent_graph as analyze_graph
 from memory.long_term import (
     list_analyzed_jobs, list_user_conversations, get_or_create_user,
+    delete_user_data, delete_conversation_data,
 )
 from tools.skill_guard import normalize_job_name
 from core.task_manager import task_manager
@@ -58,6 +59,12 @@ def create_or_get_user(username: str = Query("")):
     name = username or f"用户_{str(uuid.uuid4())[:8]}"
     uid = get_or_create_user(name)
     return {"code": 200, "user_id": uid, "username": name}
+
+
+@app.delete("/user/{user_id}")
+def delete_user(user_id: int):
+    result = delete_user_data(user_id)
+    return {"code": 200, **result}
 
 
 # ── 对话 ──
@@ -158,12 +165,35 @@ def get_conversation_messages(thread_id: str):
     return {"code": 200, "messages": []}
 
 
+@app.delete("/conversation/{thread_id}")
+def delete_conversation(thread_id: str, user_id: int = Query(0)):
+    result = delete_conversation_data(thread_id, user_id or None)
+    return {"code": 200, **result}
+
+
 # ── 历史对话 ──
 @app.get("/conversations")
-def get_conversations(user_id: int = Query(0)):
+def get_conversations(user_id: int = Query(0), include_orphans: bool = Query(True)):
     if not user_id:
         return {"code": 200, "conversations": []}
     convs = list_user_conversations(user_id)
+    if include_orphans:
+        try:
+            from memory.short_term import list_checkpoint_threads
+            known = {c["thread_id"] for c in convs}
+            for item in list_checkpoint_threads():
+                tid = item["thread_id"]
+                if tid in known:
+                    continue
+                convs.append({
+                    "thread_id": tid,
+                    "title": f"恢复会话 {tid[:8]}",
+                    "created_at": "",
+                    "updated_at": "",
+                    "recovered": True,
+                })
+        except Exception as e:
+            logger.warning(f"恢复 checkpoint 会话列表失败: {e}")
     return {"code": 200, "conversations": convs}
 
 

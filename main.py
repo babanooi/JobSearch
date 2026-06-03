@@ -56,7 +56,7 @@ def cmd_doctor():
     """环境自检"""
     checks = {
         "DeepSeek API": bool(settings.DEEPSEEK_API_KEY),
-        "Tavily API": bool(settings.TAVILY_API_KEY),
+        "AnySearch API": bool(settings.ANYSEARCH_API_KEY),
         "Dashscope API": bool(settings.DASHSCOPE_API_KEY),
         "MySQL URL": bool(settings.DATABASE_URL),
     }

@@ -35,7 +35,7 @@ def search_node(state: AgentState) -> AgentState:
     round_num = state.get("search_round", 0) + 1
     logger.info(f">>> search_node 第{round_num}轮搜索: {query}")
 
-    with trace("search", f"Tavily 搜索 第{round_num}轮", model="tavily") as t:
+    with trace("search", f"AnySearch 搜索 第{round_num}轮", model="anysearch") as t:
         items = search_agent.run(query)
         t["round"] = round_num
         t["results"] = len(items)
@@ -103,6 +103,9 @@ def route_after_evaluate(state: AgentState) -> str:
 
 def extract_node(state: AgentState) -> AgentState:
     items = state.get("search_raw_items", []) or []
+    if not items:
+        logger.warning(">>> extract_node: 无搜索结果，跳过提取")
+        return {"skill_list": [], "status": "无搜索结果可提取"}
     logger.info(f">>> extract_node 开始提取技能，共 {len(items)} 条 JD")
     t0 = time.time()
 
@@ -150,12 +153,16 @@ def extract_node(state: AgentState) -> AgentState:
 
 
 def skill_reflect_node(state: AgentState) -> AgentState:
-    """反思过滤：DB交叉对照 + LLM 审视"""
+    """反思过滤：DB交叉对照 + LLM 审视。只对唯一技能审核，输出保留原始频次"""
     raw_skills = state.get("skill_list", [])
     if not raw_skills:
         return {"skill_list": []}
 
     unique = list(set(raw_skills))
+
+    # 第0关：正则兜底过滤（成本最低，先跑）
+    unique = guard_skill_list(unique)
+
     from agents.base import get_utility_llm
     from sqlalchemy import text
     from models.database import SessionLocal
@@ -179,7 +186,7 @@ def skill_reflect_node(state: AgentState) -> AgentState:
             need_review.append(s)
 
     # LLM 只审查未知技能
-    filtered = list(auto_keep)
+    approved_unique = list(auto_keep)
     if need_review:
         prompt = f"""你是技能关键词审查员。审视以下词语，只保留**真正的技术技能**。
 
@@ -196,19 +203,29 @@ def skill_reflect_node(state: AgentState) -> AgentState:
             try:
                 msg = get_utility_llm().invoke(prompt)
                 reviewed = [s.strip() for s in msg.content.strip().split(",") if s.strip()]
-                filtered.extend(reviewed)
+                approved_unique.extend(reviewed)
                 t["removed"] = len(need_review) - len(reviewed)
                 t["kept"] = len(reviewed)
             except Exception:
-                filtered.extend(need_review)
+                approved_unique.extend(need_review)
 
-    # 语义归一化：将变体匹配到已有标准技能名
-    filtered = normalize_skill_list(filtered, registry.embeddings)
+    # 语义归一化：将 approved_unique 映射到标准名
+    normalized_unique = normalize_skill_list(approved_unique, registry.embeddings)
+    name_map = dict(zip(approved_unique, normalized_unique))
+
+    # 回过滤原始列表，保留频次：只有审核通过的技能才保留，并用归一化名替换
+    approved_set = set(approved_unique)
+    result = []
+    for s in raw_skills:
+        if s in approved_set:
+            result.append(name_map.get(s, s))
+
+    removed = len(unique) - len(approved_unique)
 
     logger.info(
-        f">>> skill_reflect: {len(unique)} 去重 → 已知{len(auto_keep)}+LLM保留{len(filtered)-len(auto_keep)} → 最终 {len(filtered)} 个"
+        f">>> skill_reflect: {len(unique)} 去重 → 过滤 {removed} 个 → 最终 {len(approved_unique)} 个唯一技能, 共 {len(result)} 次出现"
     )
-    return {"skill_list": filtered}
+    return {"skill_list": result}
 
 
 def save_node(state: AgentState) -> AgentState:
@@ -218,9 +235,8 @@ def save_node(state: AgentState) -> AgentState:
     total_jds = len(items)
 
     logger.info(f">>> save_node 入库: {job_name}，共 {len(skill_list)} 个技能（样本 {total_jds} 条 JD）")
-    skill_count = Counter(skill_list)
-    db.save_skill_list(job_name, skill_count, total_jds=total_jds)
-    logger.info(f"<<< save_node 入库完成: {job_name} -> {len(skill_count)} 个不重复技能")
+    db.save_skill_list(job_name, skill_list, total_jds=total_jds)
+    logger.info(f"<<< save_node 入库完成: {job_name} -> 个技能已入库")
     clear_skill_cache()  # 有新技能入库，刷新语义缓存
     return {"status": "存储完成"}
 
@@ -238,6 +254,8 @@ def store_jd_node(state: AgentState) -> AgentState:
         t["jd_input"] = len(items)
         t["chunks_output"] = chunk_count
     logger.info(f"<<< store_jd_node: 入库完成 -> {chunk_count} 个新 chunk")
+    if chunk_count > 0:
+        clear_bm25_cache()
     return {"status": f"JD 入库: {chunk_count} 个新 chunk"}
 
 

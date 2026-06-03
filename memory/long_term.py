@@ -205,15 +205,20 @@ class SimpleBM25:
 
 
 @lru_cache(maxsize=1)
-def _load_bm25_index() -> SimpleBM25:
-    """从 MySQL jd_chunks 加载所有文本，构建 BM25 索引（缓存）"""
+def _load_bm25_index() -> tuple[SimpleBM25, dict[int, int]]:
+    """从 MySQL jd_chunks 加载文本 + ID，构建 BM25 索引（缓存）。
+    返回: (bm25, idx_to_chunk_id) — idx_to_chunk_id[list下标] = chunk_db_id"""
     with SessionLocal() as session:
-        rows = session.query(JdChunk.chunk_text).all()
-    docs = [r[0] for r in rows]
+        rows = session.query(JdChunk.id, JdChunk.chunk_text).order_by(JdChunk.id).all()
+    docs = [r[1] for r in rows]
+    idx_to_chunk_id = {i: r[0] for i, r in enumerate(rows)}
     bm25 = SimpleBM25()
     bm25.fit(docs)
-    logger.info(f"BM25 索引构建完成: {len(docs)} 个文档")
-    return bm25
+    logger.info(
+        f"BM25 索引构建完成: {len(docs)} 个文档, "
+        f"ID 范围 {min(idx_to_chunk_id.values()) if idx_to_chunk_id else 0}-{max(idx_to_chunk_id.values()) if idx_to_chunk_id else 0}"
+    )
+    return bm25, idx_to_chunk_id
 
 
 def clear_bm25_cache():
@@ -225,36 +230,56 @@ def clear_bm25_cache():
 def _rrf_merge(
     bm25_ranked: list[tuple[int, float]],
     vector_items: list[dict],
+    idx_to_chunk_id: dict[int, int],
     k: int = RRF_K,
 ) -> list[dict]:
-    """RRF 重排：融合 BM25 和向量结果"""
+    """RRF 重排：融合 BM25 和向量结果，统一使用 chunk DB ID"""
     rrf_scores: dict[int, float] = {}
     chunk_id_to_item: dict[int, dict] = {}
 
-    # BM25 贡献
+    # BM25 贡献：将 list 下标转为 DB chunk_id 后再写入
     for rank, (doc_idx, _) in enumerate(bm25_ranked):
-        rrf_scores[doc_idx] = rrf_scores.get(doc_idx, 0) + 1.0 / (k + rank + 1)
+        chunk_id = idx_to_chunk_id.get(doc_idx)
+        if chunk_id is None:
+            continue
+        rrf_scores[chunk_id] = rrf_scores.get(chunk_id, 0) + 1.0 / (k + rank + 1)
 
-    # 向量贡献（按 chunk_id 关联到文档索引）
+    # 向量贡献
     for rank, item in enumerate(vector_items):
         cid = item.get("chunk_id", "")
         try:
-            doc_idx = int(cid.replace("chunk_", ""))
+            chunk_id = int(cid.replace("chunk_", ""))
         except ValueError:
             continue
-        chunk_id_to_item[doc_idx] = item
-        rrf_scores[doc_idx] = rrf_scores.get(doc_idx, 0) + 1.0 / (k + rank + 1)
+        chunk_id_to_item[chunk_id] = item
+        rrf_scores[chunk_id] = rrf_scores.get(chunk_id, 0) + 1.0 / (k + rank + 1)
 
     merged = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
 
+    # 找出只有 BM25 命中、ChromaDB 没命中的 chunk_id
+    bm25_only_ids = [cid for cid, _ in merged if cid not in chunk_id_to_item]
+    if bm25_only_ids:
+        with SessionLocal() as session:
+            rows = session.query(JdChunk).filter(JdChunk.id.in_(bm25_only_ids)).all()
+            for row in rows:
+                doc = session.query(JdDocument).filter(JdDocument.id == row.document_id).first()
+                chunk_id_to_item[row.id] = {
+                    "chunk_id": f"chunk_{row.id}",
+                    "text": row.chunk_text,
+                    "job_name": doc.job_name if doc else "",
+                    "company": doc.company if doc else "",
+                    "source_url": doc.source_url if doc else "",
+                    "score": None,
+                }
+
     results = []
-    for doc_idx, score in merged:
-        if doc_idx in chunk_id_to_item:
-            item = chunk_id_to_item[doc_idx]
-            # 余弦距离越小越相似，转为相似度分数便于展示
-            cos_dist = item.get("score", 1.0)
+    for chunk_id, score in merged:
+        if chunk_id in chunk_id_to_item:
+            item = chunk_id_to_item[chunk_id]
             item["rrf_score"] = round(score, 4)
-            item["cos_sim"] = round(1.0 - cos_dist, 4) if cos_dist <= 1.0 else 0
+            cos_dist = item.get("score")
+            if cos_dist is not None:
+                item["cos_sim"] = round(1.0 - cos_dist, 4) if cos_dist <= 1.0 else 0
             results.append(item)
 
     return results
@@ -267,14 +292,14 @@ def hybrid_search_with_rerank(
 ) -> list[dict]:
     """BM25 + 向量双路召回 + RRF 重排，返回 Top-K 个 JD 文本块"""
     # 1. BM25 关键词检索
-    bm25 = _load_bm25_index()
+    bm25, idx_to_chunk_id = _load_bm25_index()
     bm25_ranked = bm25.search(query, top_k=top_k * 2)
 
     # 2. ChromaDB 向量检索
     vector_items = search_jd_semantic(query, embeddings, top_k=top_k * 2)
 
     # 3. RRF 重排
-    merged = _rrf_merge(bm25_ranked, vector_items)
+    merged = _rrf_merge(bm25_ranked, vector_items, idx_to_chunk_id)
     logger.debug(
         f"hybrid_search: BM25={len(bm25_ranked)} + Vector={len(vector_items)}"
         f" -> RRF={len(merged)}"
@@ -282,14 +307,17 @@ def hybrid_search_with_rerank(
     return merged[:top_k]
 
 
-def save_summary(thread_id: str, text: str):
+def save_summary(thread_id: str, text: str, start_round: int = 0, end_round: int = 0):
     """压缩摘要写入 MySQL，跨会话持久化"""
     if not text or not thread_id:
         return
     with SessionLocal() as session:
-        session.add(Summary(thread_id=thread_id, summary_text=text))
+        session.add(Summary(
+            thread_id=thread_id, summary_text=text,
+            start_round=start_round, end_round=end_round,
+        ))
         session.commit()
-    logger.info(f"摘要入库: thread={thread_id[:8]}... {len(text)} 字")
+    logger.info(f"摘要入库: thread={thread_id[:8]}... {len(text)} 字 (round {start_round}-{end_round})")
 
 
 def load_latest_summary(thread_id: str) -> str:
@@ -350,3 +378,61 @@ def save_conversation(user_id: int, thread_id: str, title: str = ""):
                 user_id=user_id, thread_id=thread_id, title=title
             ))
         session.commit()
+
+
+def delete_conversation_data(thread_id: str, user_id: int | None = None) -> dict:
+    """删除单个会话索引和摘要，返回删除统计。"""
+    with SessionLocal() as session:
+        query = session.query(Conversation).filter(
+            Conversation.thread_id == thread_id
+        )
+        if user_id:
+            query = query.filter(Conversation.user_id == user_id)
+        conv_count = query.delete(synchronize_session=False)
+        summary_count = session.query(Summary).filter(
+            Summary.thread_id == thread_id
+        ).delete(synchronize_session=False)
+        session.commit()
+
+    logger.info(
+        f"删除会话: thread={thread_id[:8]}..., user_id={user_id}, "
+        f"conversations={conv_count}, summaries={summary_count}"
+    )
+    return {
+        "deleted": conv_count > 0,
+        "conversations": conv_count,
+        "summaries": summary_count,
+    }
+
+
+def delete_user_data(user_id: int) -> dict:
+    """删除用户及其会话索引/摘要，返回删除统计。"""
+    with SessionLocal() as session:
+        user = session.query(User).filter(User.id == user_id).first()
+        if not user:
+            return {"deleted": False, "conversations": 0, "summaries": 0}
+
+        convs = session.query(Conversation).filter(
+            Conversation.user_id == user_id
+        ).all()
+        thread_ids = [c.thread_id for c in convs]
+        summary_count = 0
+        if thread_ids:
+            summary_count = session.query(Summary).filter(
+                Summary.thread_id.in_(thread_ids)
+            ).delete(synchronize_session=False)
+
+        conv_count = session.query(Conversation).filter(
+            Conversation.user_id == user_id
+        ).delete(synchronize_session=False)
+        session.delete(user)
+        session.commit()
+
+    logger.info(
+        f"删除用户: user_id={user_id}, conversations={conv_count}, summaries={summary_count}"
+    )
+    return {
+        "deleted": True,
+        "conversations": conv_count,
+        "summaries": summary_count,
+    }

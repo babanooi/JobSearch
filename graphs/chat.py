@@ -14,6 +14,7 @@ from memory.short_term import (
 from memory.long_term import (
     query_skill_rank, list_analyzed_jobs, match_job_names,
     hybrid_search_with_rerank, save_conversation, load_latest_summary,
+    save_summary,
 )
 from tools.skill_guard import normalize_job_name
 from core.task_manager import TaskCancelledError
@@ -91,18 +92,24 @@ def chat_node(state: ChatState) -> ChatState:
     # 压缩
     new_summary = summary
     if len(new_messages) > MAX_MESSAGE_ROUNDS * 2:
-        compressed = compress_history(new_messages, MAX_MESSAGE_ROUNDS)
+        total_before = len(new_messages) // 2
+        compressed = compress_history(new_messages, MAX_MESSAGE_ROUNDS, previous_summary=summary)
         new_messages = compressed["recent"]
         new_summary = compressed["summary"] or summary
-
-    # 所有动作都追加 assistant 回复到消息历史
-    new_messages.append({"role": "assistant", "content": response})
+        if new_summary:
+            end_round = total_before - MAX_MESSAGE_ROUNDS
+            save_summary(thread_id, new_summary, start_round=1, end_round=end_round)
 
     result = {
         "messages": new_messages,
         "summary": new_summary,
         "conversation_saved": True,
     }
+
+    # 防止无限循环：已有 knowledge 且非首次进入时，强制 chat 不再触发检索/分析/研究
+    if knowledge and round_num > 0 and action in ("search", "analyze", "research"):
+        logger.info(f">>> 已有 knowledge，忽略 {action} 标记，强制 chat")
+        action = "chat"
 
     if action == "analyze":
         pending_job = arg or state.get("pending_job", "") or user_input
@@ -135,7 +142,6 @@ def chat_node(state: ChatState) -> ChatState:
         # 清洗内部路由标记，避免泄漏到前端
         response = re.sub(r'\n?\[(SEARCH|ANALYZE|RESEARCH):[^\]]*\]', '', response).strip()
         new_messages.append({"role": "assistant", "content": response})
->>>>>>> 6ddb3f8 (feat: 异步任务系统 + 数据库懒加载 + 注册中心改造)
         return {
             **result,
             "intent": "chat",
