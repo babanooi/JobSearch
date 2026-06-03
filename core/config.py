@@ -13,6 +13,7 @@ class Settings:
     MODEL_BASE_URL: str = os.getenv("MODEL_BASE_URL", "")
     MODEL_NAME: str = os.getenv("MODEL_NAME", "")
     TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY", "")
+    ANYSEARCH_API_KEY: str = os.getenv("ANYSEARCH_API_KEY", "")
     DATABASE_URL: str = os.getenv("DATABASE_URL")
     DASHSCOPE_API_KEY: str = os.getenv("DASHSCOPE_API_KEY", "")
     EMBEDDING_MODEL_NAME: str = os.getenv("EMBEDDING_MODEL_NAME", "text-embedding-v4")

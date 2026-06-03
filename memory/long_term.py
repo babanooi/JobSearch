@@ -216,6 +216,12 @@ def _load_bm25_index() -> SimpleBM25:
     return bm25
 
 
+def clear_bm25_cache():
+    """清除 BM25 索引缓存（新 JD 入库后调用）"""
+    _load_bm25_index.cache_clear()
+    logger.info("BM25 索引缓存已清除")
+
+
 def _rrf_merge(
     bm25_ranked: list[tuple[int, float]],
     vector_items: list[dict],
