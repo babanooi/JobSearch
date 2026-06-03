@@ -25,7 +25,9 @@
 // ── 工具 ──
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
 function fmt(s,id){
-  return s
+  // 先转义防止 XSS，再安全替换标记格式
+  let t=esc(s);
+  return t
     .replace(/\n/g,'<br>')
     .replace(/\[(\d+)\]/g,'<sup class="cite-badge" data-cite="$1">[$1]</sup>')
     .replace(/~~([^~]+)~~/g,'<del class="unverified">$1</del>');
@@ -78,17 +80,36 @@ function toast(msg){const d=document.createElement('div');d.className='toast';d.
 async function sendMessage(){
   const text=el.chatInput.value.trim();if(!text)return;
   el.chatInput.value='';el.btnSend.disabled=true;
-  addMsg('user',text);
+  addMsg('user',esc(text));
   const loadDiv=addLoading();
   try{
-    const result=await api.chat(text,threadId);
+    // 1. 提交异步任务
+    const submit=await api.chat(text,threadId);
+    if(!submit.async){throw new Error('服务器未返回任务ID');}
+    threadId=submit.thread_id;
+    const taskId=submit.task_id;
+
+    // 2. 轮询直到完成
+    let result=null;
+    for(let i=0;i<150;i++){  // 最多5分钟(150×2s)
+      await new Promise(r=>setTimeout(r,2000));
+      const poll=await fetch('/task/'+taskId).then(r=>r.json());
+      if(poll.code!==200)break;
+      const t=poll.task;
+      loadDiv.textContent=t.progress||'处理中...';
+      if(t.finished){
+        result=t.result;
+        break;
+      }
+    }
     loadDiv.remove();
+
+    if(!result){throw new Error('任务未完成');}
     if(result.response.includes('共完成')&&result.knowledge?.length){
       renderResearchInline(result.response,result.knowledge);
     }else{
       addMsg('assistant',fmt(result.response));
     }
-    if(result.thread_id)threadId=result.thread_id;
     allMessages.push({role:'user',content:text},{role:'assistant',content:result.response});
     saveMsgs();
     refreshSidebar();
@@ -209,7 +230,8 @@ el.btnResearch.addEventListener('click',async()=>{
   el.researchTimeline.innerHTML='<span style="color:var(--green)">拆解需求</span> → <span style="color:var(--blue)">并行执行中...</span> → 聚合结果';
   el.researchBody.innerHTML='<div class="msg-loading"></div>';
   try{
-    const result=await api.chat(text,threadId);
+    // 直调 /research 端点，绕过 ChatAgent，直接走研究流程
+    const result=await fetch('/research',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:text})}).then(r=>r.json());
     if(result.knowledge?.length){
       el.researchTimeline.innerHTML='<span style="color:var(--green)">拆解需求</span> → <span style="color:var(--green)">并行执行</span> → <span style="color:var(--green)">聚合结果</span>';
       const cats={技能:'skill',薪资:'salary',公司:'company',面试:'interview'};

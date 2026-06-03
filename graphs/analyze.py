@@ -10,7 +10,9 @@ from agents.registry import registry
 from agents.base import get_utility_llm
 from graphs.state import AgentState
 from memory.short_term import create_checkpointer
-from tools.skill_guard import normalize_job_name, normalize_skill_list, clear_skill_cache
+from memory.long_term import clear_bm25_cache
+from tools.skill_guard import normalize_job_name, normalize_skill_list, clear_skill_cache, guard_skill_list
+from core.task_manager import TaskCancelledError
 from core.logger import get_logger
 from core.tracer import trace
 
@@ -111,16 +113,26 @@ def extract_node(state: AgentState) -> AgentState:
     all_skills = []
     total_prompt_tokens = 0
     total_completion_tokens = 0
+    # 取消检查：开始提取前
+    task = state.get("task")
+    if task and task.is_cancelled():
+        raise TaskCancelledError(f"任务 {task.task_id} 已取消")
+
     with trace("extract", f"LLM 提取 {len(items)}条JD ({len(batches)}批并行)", model=extract_agent.llm.model_name) as t:
         with ThreadPoolExecutor(max_workers=min(len(batches), 4)) as pool:
             futures = []
             for batch in batches:
+                # 每批提交前检查取消，避免取消后还提交 v4-pro 调用
+                if task and task.is_cancelled():
+                    raise TaskCancelledError(f"任务 {task.task_id} 已取消")
                 combined = "\n\n---\n\n".join(
                     item["content"][:300] for item in batch
                 )
                 futures.append(pool.submit(extract_agent.run, combined))
 
             for f in as_completed(futures):
+                if task and task.is_cancelled():
+                    raise TaskCancelledError(f"任务 {task.task_id} 已取消")
                 skills, token_usage = f.result()
                 all_skills.extend(skills)
                 total_prompt_tokens += token_usage["prompt_tokens"]

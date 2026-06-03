@@ -15,6 +15,7 @@ from memory.long_term import (
     list_analyzed_jobs, list_user_conversations, get_or_create_user,
 )
 from tools.skill_guard import normalize_job_name
+from core.task_manager import task_manager
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -73,24 +74,70 @@ def chat(request: ChatRequest):
     tid = request.thread_id or new_thread_id()
     uid = request.user_id or 0
 
-    # 新用户自动注册
     if uid and not request.thread_id:
         get_or_create_user(f"用户_{tid[:8]}")
 
-    # 只传本轮新增字段，历史消息由 SqliteSaver 自动恢复
-    result = chat_agent_graph.invoke(
-        {
-            "thread_id": tid,
-            "user_id": uid,
-            "user_input": request.message,
-        },
-        config={"configurable": {"thread_id": tid}},
+    task = task_manager.create("chat")
+
+    def _run(task, _tid, _uid, _msg):
+        task.progress = "分析意图..."
+        result = chat_agent_graph.invoke(
+            {"thread_id": _tid, "user_id": _uid, "user_input": _msg, "task": task},
+            config={"configurable": {"thread_id": _tid}},
+        )
+        return {
+            "code": 200,
+            "response": result.get("response", ""),
+            "thread_id": _tid,
+            "knowledge": result.get("knowledge", []),
+        }
+
+    task_manager.run(task, _run, tid, uid, request.message)
+    return {"code": 200, "task_id": task.task_id, "thread_id": tid, "async": True}
+
+
+# ── 任务状态查询 ──
+@app.get("/task/{task_id}")
+def get_task(task_id: str):
+    task = task_manager.get(task_id)
+    if not task:
+        return {"code": 404, "message": "任务不存在"}
+    return {"code": 200, "task": task.to_dict()}
+
+
+@app.post("/task/{task_id}/cancel")
+def cancel_task(task_id: str):
+    ok = task_manager.cancel(task_id)
+    return {"code": 200, "cancelled": ok}
+
+
+# ── 深度研究（直接走 research_graph，不经过 ChatAgent） ──
+class ResearchRequest(BaseModel):
+    topic: str
+
+
+@app.post("/research")
+def research(request: ResearchRequest):
+    """直接从已有数据库搜索多维度信息，LLM 生成研究报告"""
+    from graphs.research import research_graph
+    import uuid
+
+    tid = str(uuid.uuid4())
+    logger.info(f"POST /research topic={request.topic[:50]}...")
+
+    t0 = time.time()
+    result = research_graph.invoke(
+        {"user_input": request.topic, "messages": []},
+        config={"configurable": {"thread_id": f"research_{tid}"}},
     )
+    elapsed = time.time() - t0
+    logger.info(f"POST /research 完成 -> 耗时 {elapsed:.1f}s, {len(result.get('knowledge',[]))} 卡片")
+
     return {
         "code": 200,
-        "response": result.get("response", ""),
-        "thread_id": tid,
         "knowledge": result.get("knowledge", []),
+        "response": result.get("response", ""),
+        "elapsed": f"{elapsed:.1f}s",
     }
 
 

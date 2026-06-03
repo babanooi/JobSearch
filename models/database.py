@@ -5,16 +5,43 @@ from sqlalchemy import DateTime
 from sqlalchemy.sql import func
 from core.config import settings
 import datetime
+import os
 
-engine = create_engine(
-    settings.DATABASE_URL,
-    echo=True,
-    pool_size=10,
-    max_overflow=20,
-    connect_args={"charset": "utf8mb4"},
-)
+_engine = None
+_session_factory = None
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def get_engine():
+    """懒加载 SQLAlchemy engine，首次调用时才创建"""
+    global _engine
+    if _engine is None:
+        _engine = create_engine(
+            settings.DATABASE_URL,
+            echo=os.getenv("SQL_ECHO", "false").lower() == "true",
+            pool_size=10,
+            max_overflow=20,
+            connect_args={"charset": "utf8mb4"},
+        )
+    return _engine
+
+
+def get_session_factory():
+    """懒加载 SessionLocal，首次调用时才创建"""
+    global _session_factory
+    if _session_factory is None:
+        _session_factory = sessionmaker(autocommit=False, autoflush=False, bind=get_engine())
+    return _session_factory
+
+
+class _LazySessionLocal:
+    """延迟代理：import 时不创建 engine，首次调用时才初始化"""
+    def __call__(self):
+        return get_session_factory()()
+    def __getattr__(self, name):
+        return getattr(get_session_factory(), name)
+
+
+SessionLocal = _LazySessionLocal()
 
 
 class Base(DeclarativeBase):
@@ -24,11 +51,12 @@ class Base(DeclarativeBase):
 
 
 def init_database():
-    Base.metadata.create_all(bind=engine)
+    """初始化数据库表结构"""
+    Base.metadata.create_all(bind=get_engine())
 
 
 def get_db():
-    db = SessionLocal()
+    db = get_session_factory()()
     try:
         yield db
     finally:

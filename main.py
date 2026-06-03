@@ -64,8 +64,8 @@ def cmd_doctor():
         print(f"  {'OK' if ok else 'MISSING'} {name}")
 
     try:
-        from models.database import engine
-        engine.connect().close()
+        from models.database import get_engine
+        get_engine().connect().close()
         print("  OK  MySQL 连接")
     except Exception as e:
         print(f"  FAIL MySQL 连接: {e}")

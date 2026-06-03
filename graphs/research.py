@@ -6,7 +6,6 @@ from langgraph.graph import StateGraph, END
 
 from agents.registry import registry
 from agents.base import get_utility_llm
-from graphs.analyze import agent_graph as analyze_graph
 from memory.short_term import create_checkpointer
 from memory.long_term import query_skill_rank, match_job_names
 from core.logger import get_logger
@@ -93,14 +92,11 @@ def parallel_execute_node(state: dict) -> dict:
                         source = f"基于已有数据 {total_jds} 条JD" if total_jds else ""
                         logger.info(f"    analyze 命中已有数据: {job} ({len(skills)}技能)")
                     else:
-                        result = analyze_graph.invoke(
-                            {"job_name": query, "search_query": query, "status": "开始执行"},
-                            config={"configurable": {"thread_id": f"research_{hash(query)}"}},
-                        )
-                        skills = query_skill_rank(query, top_n=5)
-                        items = [f"{s['skill']}({s['count']}次)" for s in skills]
-                        source = f"基于 {len(result.get('search_raw_items',[]))} 条JD"
-                        logger.info(f"    analyze 完成全流程: {len(skills)} 技能")
+                        # 无缓存时退回快速搜索，不跑完整分析（避免 3-5min 延迟）
+                        items_raw = registry.search_tool.search_job_info(query)
+                        items = [r.get("title", r.get("content", "")[:120]) for r in items_raw[:5]]
+                        source = f"AnySearch 搜索: {query[:40]}（该岗位尚未分析，可稍后单独分析）"
+                        logger.info(f"    analyze 无缓存，退回搜索: {len(items_raw)} 条结果")
                 except Exception as e:
                     items = [f"分析失败: {e}"]
                     source = ""
@@ -177,7 +173,12 @@ def reflect_node(state: dict) -> dict:
 
     if raw.strip().upper() == "FINISH":
         logger.info(f">>> reflect: 信息完整，结束研究")
-        return {"intent": "research_done", "reflect_round": new_round}
+        return {
+            "intent": "research_done",
+            "reflect_round": new_round,
+            "knowledge": state.get("knowledge", []),
+            "response": state.get("response", ""),
+        }
 
     try:
         extra_plan = json.loads(raw)
@@ -185,14 +186,21 @@ def reflect_node(state: dict) -> dict:
         for p in extra_plan:
             logger.info(f"    + [{p.get('type','?')}] {p.get('label','?')}: {p.get('query','?')[:50]}")
 
-        # 合并到现有 research_plan
+        # 合并到现有 research_plan，保留已有 knowledge
         existing_plan = state.get("research_plan", [])
         return {
             "research_plan": existing_plan + extra_plan,
             "reflect_round": new_round,
+            "knowledge": state.get("knowledge", []),
+            "response": state.get("response", ""),
         }
     except Exception:
-        return {"intent": "research_done", "reflect_round": new_round}
+        return {
+            "intent": "research_done",
+            "reflect_round": new_round,
+            "knowledge": state.get("knowledge", []),
+            "response": state.get("response", ""),
+        }
 
 
 def route_after_reflect(state: dict) -> str:
@@ -231,6 +239,8 @@ def synthesize_node(state: dict) -> dict:
     return {
         "knowledge": knowledge,
         "response": response,
+        "research_cards": cards,
+        "reflect_round": state.get("reflect_round", 0),
     }
 
 

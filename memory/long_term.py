@@ -59,12 +59,12 @@ def query_skill_rank(job_name: str, top_n: int = 10) -> list[dict]:
     with SessionLocal() as session:
         rows = session.execute(
             text(
-                "SELECT skill_name, count FROM job_skills "
+                "SELECT skill_name, count, total_jds FROM job_skills "
                 "WHERE job_name = :job ORDER BY count DESC LIMIT :n"
             ),
             {"job": job_name, "n": top_n},
         ).fetchall()
-        return [{"skill": r[0], "count": r[1]} for r in rows]
+        return [{"skill": r[0], "count": r[1], "total_jds": r[2]} for r in rows]
 
 
 def list_analyzed_jobs() -> list[str]:

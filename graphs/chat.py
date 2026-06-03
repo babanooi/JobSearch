@@ -16,6 +16,7 @@ from memory.long_term import (
     hybrid_search_with_rerank, save_conversation, load_latest_summary,
 )
 from tools.skill_guard import normalize_job_name
+from core.task_manager import TaskCancelledError
 from core.logger import get_logger
 from core.tracer import trace
 
@@ -35,10 +36,18 @@ class ChatState(TypedDict):
     pending_job: str
     conversation_saved: bool
     chat_round: int  # 当前轮次内第几次调 chat_node（0=首次，1=带检索/分析结果）
+    task: object       # Task 实例，用于取消检查
 
 
 def chat_node(state: ChatState) -> ChatState:
     """ChatAgent 一次 LLM 调用：理解+决策+生成回复。通过标记路由后续动作"""
+    # 取消检查：开头就检查，避免浪费 LLM 调用
+    task = state.get("task")
+    if task and task.is_cancelled():
+        raise TaskCancelledError(f"任务 {task.task_id} 已取消")
+    if task:
+        task.progress = "分析意图..."
+
     user_input = state["user_input"]
     summary = state.get("summary", "")
     knowledge = state.get("knowledge", [])
@@ -123,16 +132,10 @@ def chat_node(state: ChatState) -> ChatState:
             response, unverified = registry.chat_agent.verify_citations(response, knowledge)
             if unverified:
                 response = registry.chat_agent.apply_corrections(response, unverified)
-        else:
-            # 无 knowledge 时，检测回复是否包含技术实体声明
-            tech_pattern = re.compile(
-                r'[A-Z][a-z]+(?:\.[A-Z][a-z]+)*'
-                r'|[A-Z]{2,}'
-                r'|[一-鿿]{2,4}(?:框架|数据库|语言|工具|平台)',
-            )
-            if tech_pattern.search(response):
-                logger.info(">>> 检测到技术实体声明但无 knowledge，标记为需验证")
-                response += '\n\n> 💡 以上技术信息未经数据验证，如需准确数据请使用 [SEARCH:] 检索'
+        # 清洗内部路由标记，避免泄漏到前端
+        response = re.sub(r'\n?\[(SEARCH|ANALYZE|RESEARCH):[^\]]*\]', '', response).strip()
+        new_messages.append({"role": "assistant", "content": response})
+>>>>>>> 6ddb3f8 (feat: 异步任务系统 + 数据库懒加载 + 注册中心改造)
         return {
             **result,
             "intent": "chat",
@@ -179,6 +182,8 @@ def rag_query_node(state: ChatState) -> ChatState:
     search_query = f"{summary}\n{user_input}" if summary else user_input
 
     logger.info(f">>> rag_query: {user_input[:50]}")
+    task = state.get("task")
+    if task: task.progress = "检索知识库..."
     knowledge = []
     source_index = []
 
@@ -223,12 +228,14 @@ def trigger_analyze_node(state: ChatState) -> ChatState:
     thread_id = state.get("thread_id", str(uuid.uuid4()))
 
     logger.info(f">>> trigger_analyze: job={job_name}")
+    task = state.get("task")
+    if task: task.progress = f"分析岗位: {job_name}..."
 
     with trace("trigger_analyze", "执行分析工作流", model="deepseek-v4-pro+chat") as t:
         t["thread_id"] = thread_id
         t["job_name"] = job_name
         result = analyze_graph.invoke(
-            {"job_name": job_name, "search_query": search_query, "status": "开始执行"},
+            {"job_name": job_name, "search_query": search_query, "status": "开始执行", "task": state.get("task")},
             config={"configurable": {"thread_id": thread_id}},
         )
         t["skills_count"] = len(result.get("skill_list", []))

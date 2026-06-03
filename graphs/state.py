@@ -10,3 +10,4 @@ class AgentState(TypedDict):
     search_round: int
     search_query: str
     next_node: Optional[str]
+    task: object  # Task 实例，用于取消检查
