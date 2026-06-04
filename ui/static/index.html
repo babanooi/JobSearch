@@ -21,6 +21,9 @@
     <button class="nav-icon" data-view="radar" title="技能雷达">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
     </button>
+    <button class="nav-icon" data-view="gap" title="技能差距">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-7"/><path d="M7 19v-4"/><path d="M11 19v-8"/><path d="M15 19v-5"/><path d="M19 19V7"/></svg>
+    </button>
     <button class="nav-icon" data-view="research" title="深度研究">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
     </button>
@@ -68,6 +71,43 @@
     </div>
     <div class="radar-body" id="radarBody">
       <div class="radar-empty">◇ 输入岗位名称，探索技能全景</div>
+    </div>
+  </div>
+
+  <!-- 视图: 技能差距 -->
+  <div id="viewGap" class="view">
+    <div class="gap-top">
+      <div class="gap-search">
+        <input type="text" id="gapJobInput" placeholder="目标岗位，例如 Python后端" autocomplete="off" />
+        <button id="btnGapLoad">加载技能</button>
+      </div>
+      <div class="radar-tags-toggle" id="gapTagsToggle">
+        <span class="tags-toggle-label">已分析岗位</span>
+        <svg class="tags-toggle-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="radar-quick-tags collapsed" id="gapQuickTags"></div>
+    </div>
+    <div class="gap-body">
+      <section class="gap-column">
+        <div class="gap-section-head">
+          <div>
+            <div class="gap-label">市场技能</div>
+            <div class="gap-subtle" id="gapMarketMeta">等待选择岗位</div>
+          </div>
+          <button class="gap-mini-btn" id="btnGapClear">清空</button>
+        </div>
+        <div class="gap-skill-list" id="gapSkillList">
+          <div class="radar-empty">选择岗位后显示技能列表</div>
+        </div>
+        <div class="gap-extra">
+          <div class="gap-label">补充技能</div>
+          <textarea id="gapExtraInput" rows="3" placeholder="Python, MySQL, Git"></textarea>
+        </div>
+        <button class="gap-analyze-btn" id="btnGapAnalyze">分析差距</button>
+      </section>
+      <section class="gap-result" id="gapResult">
+        <div class="gap-result-empty">差距结果将在这里显示</div>
+      </section>
     </div>
   </div>
 

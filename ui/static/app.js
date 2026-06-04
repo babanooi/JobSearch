@@ -48,8 +48,11 @@ const api={
   async conversations(uid){const r=await fetch('/conversations?user_id='+uid);const d=await r.json();return d.conversations||[];},
   async analyzedJobs(){const r=await fetch('/skill_rank/_jobs');const d=await r.json();return d.jobs||[];},
   async skillRank(job,n=15){const r=await fetch('/skill_rank/'+encodeURIComponent(job)+'?top_n='+n);return r.json();},
+  async skillGap(job,userSkills,n=15){const r=await fetch('/skill_gap',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_name:job,user_skills:userSkills,top_n:n})});return r.json();},
   async convMsgs(tid){const r=await fetch('/conversation/'+encodeURIComponent(tid));const d=await r.json();return d.messages||[];},
   async stats(){const r=await fetch('/stats');return r.json();},
+  async analyzeJob(job){const r=await fetch('/analyze_job',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_name:job})});return r.json();},
+  async task(taskId){const r=await fetch('/task/'+taskId);return r.json();},
 };
 
 function lastThreadKey(uid=userId){return 'last_thread_id_'+uid;}
@@ -75,6 +78,8 @@ const el={
   chatInput:$('chatInput'),btnSend:$('btnSend'),msgList:$('messageList'),
   convList:$('convList'),btnNewChat:$('btnNewChat'),
   radarInput:$('radarInput'),btnRadarSearch:$('btnRadarSearch'),radarQuickTags:$('radarQuickTags'),radarBody:$('radarBody'),
+  gapJobInput:$('gapJobInput'),btnGapLoad:$('btnGapLoad'),gapQuickTags:$('gapQuickTags'),gapSkillList:$('gapSkillList'),
+  gapMarketMeta:$('gapMarketMeta'),gapExtraInput:$('gapExtraInput'),btnGapAnalyze:$('btnGapAnalyze'),btnGapClear:$('btnGapClear'),gapResult:$('gapResult'),
   researchInput:$('researchInput'),btnResearch:$('btnResearch'),researchTimeline:$('researchTimeline'),researchBody:$('researchBody'),
   userAvatar:$('userAvatar'),userName:$('userName'),userMeta:$('userMeta'),userStats:$('userStats'),
   insightContent:$('insightContent'),toastContainer:$('toastContainer'),
@@ -85,9 +90,11 @@ function switchView(v){
   currentView=v;
   document.querySelectorAll('.nav-icon').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   document.querySelectorAll('.view').forEach(vw=>vw.classList.remove('active'));
-  const tgt=document.getElementById(v==='chat'?'viewChat':v==='radar'?'viewRadar':v==='research'?'viewResearch':'viewUser');
+  const viewMap={chat:'viewChat',radar:'viewRadar',gap:'viewGap',research:'viewResearch',user:'viewUser'};
+  const tgt=document.getElementById(viewMap[v]||'viewChat');
   if(tgt)tgt.classList.add('active');
   if(v==='radar')loadRadarQuickTags();
+  if(v==='gap')loadGapQuickTags();
   if(v==='user')loadUserCenter();
 }
 document.querySelectorAll('.nav-icon').forEach(b=>b.addEventListener('click',()=>switchView(b.dataset.view)));
@@ -276,7 +283,170 @@ $('radarTagsToggle').addEventListener('click',()=>{
 });
 
 // ═══════════════════════════════════════════════
-// 视图3: 深度研究
+// 视图3: 技能差距
+// ═══════════════════════════════════════════════
+let gapMarketSkills=[],gapTotalJds=0,gapCurrentJob='';
+
+function normalizeSkillText(text){
+  return String(text||'')
+    .split(/[,\n，、;；]+/)
+    .map(s=>s.trim())
+    .filter(Boolean);
+}
+function skillTitle(item){return typeof item==='string'?item:(item?.skill||'');}
+function marketRate(item,total=gapTotalJds){
+  const count=Number(item?.count)||0;
+  const base=Number(item?.total_jds)||Number(total)||0;
+  return base>0?Math.round(count/base*100):0;
+}
+function priorityClass(rate){
+  if(rate>=60)return 'high';
+  if(rate>=40)return 'mid';
+  return 'low';
+}
+async function loadGapQuickTags(){
+  if(!el.gapQuickTags)return;
+  const jobs=await api.analyzedJobs();if(!jobs.length)return;
+  el.gapQuickTags.innerHTML=jobs.slice(0,10).map(j=>'<span class="quick-tag" data-job="'+esc(j)+'">'+esc(j)+'</span>').join('');
+  el.gapQuickTags.querySelectorAll('.quick-tag').forEach(t=>t.addEventListener('click',()=>{el.gapJobInput.value=t.dataset.job;loadGapMarketSkills();}));
+}
+async function loadGapMarketSkills(){
+  const job=el.gapJobInput.value.trim();if(!job)return;
+  gapCurrentJob=job;
+  el.btnGapLoad.disabled=true;
+  el.gapSkillList.innerHTML='<div class="msg-loading"></div>';
+  el.gapResult.innerHTML='<div class="gap-result-empty">差距结果将在这里显示</div>';
+  try{
+    const res=await api.skillRank(job,15);
+    gapMarketSkills=res.data||[];
+    gapTotalJds=Number(res.total_jds)||Number(gapMarketSkills[0]?.total_jds)||0;
+    renderGapSkillList(res.last_update||'');
+  }catch(e){
+    el.gapSkillList.innerHTML='<div class="radar-empty">请求出错: '+esc(e.message)+'</div>';
+  }finally{
+    el.btnGapLoad.disabled=false;
+  }
+}
+async function triggerGapAutoAnalyze(job){
+  el.gapSkillList.innerHTML='<div class="msg-loading"></div><div style="text-align:center;margin-top:0.5rem;font-size:0.72rem;color:var(--text-dim);">正在分析「'+esc(job)+'」，首次分析可能需要 3-5 分钟...</div>';
+  try{
+    const submit=await api.analyzeJob(job);
+    if(!submit.task_id)throw new Error('服务器未返回任务ID');
+    const taskId=submit.task_id;
+    let result=null;
+    for(let i=0;i<180;i++){  // 最多6分钟(180×2s)
+      await new Promise(r=>setTimeout(r,2000));
+      const poll=await api.task(taskId);
+      if(poll.code!==200)break;
+      const t=poll.task;
+      const progressEl=el.gapSkillList.querySelector('.msg-loading');
+      if(progressEl)progressEl.textContent=t.progress||'分析中...';
+      if(t.finished){
+        result=t.result;
+        break;
+      }
+    }
+    if(!result)throw new Error('分析超时，请稍后重试');
+    // 分析完成，重新加载技能列表
+    toast('「'+job+'」分析完成');
+    await loadGapMarketSkills();
+  }catch(e){
+    el.gapSkillList.innerHTML='<div class="radar-empty">分析失败: '+esc(e.message)+'</div>';
+  }
+}
+function renderGapSkillList(lastUpdate){
+  if(!gapMarketSkills.length){
+    el.gapMarketMeta.textContent='暂无数据';
+    el.gapSkillList.innerHTML='<div class="radar-empty" style="text-align:center;line-height:2;">'
+      +'<div style="font-size:1.5rem;margin-bottom:0.5rem;">📭</div>'
+      +'<div>「'+esc(gapCurrentJob)+'」暂无技能数据</div>'
+      +'<div style="margin-top:0.8rem;"><button id="btnGapAutoAnalyze" style="padding:0.5rem 1.2rem;border-radius:var(--radius);border:1px solid var(--blue);background:transparent;color:var(--blue);cursor:pointer;font-size:0.75rem;">立即分析岗位</button></div>'
+      +'</div>';
+    const btn=$('btnGapAutoAnalyze');
+    if(btn)btn.addEventListener('click',()=>triggerGapAutoAnalyze(gapCurrentJob));
+    return;
+  }
+  const meta=[];
+  if(gapTotalJds)meta.push(gapTotalJds+' 条 JD');
+  if(lastUpdate)meta.push('更新 '+lastUpdate);
+  el.gapMarketMeta.textContent=meta.join(' · ')||gapCurrentJob;
+  el.gapSkillList.innerHTML=gapMarketSkills.map((s,i)=>{
+    const rate=marketRate(s);
+    const cls=priorityClass(rate);
+    return '<label class="gap-skill-row">'
+      +'<input type="checkbox" class="gap-skill-check" data-idx="'+i+'">'
+      +'<span class="gap-skill-main"><span class="gap-skill-name">'+esc(s.skill)+'</span><span class="gap-skill-bar"><span style="width:'+Math.max(rate,4)+'%"></span></span></span>'
+      +'<span class="gap-skill-rate '+cls+'">'+rate+'%</span>'
+      +'</label>';
+  }).join('');
+}
+function collectGapSkills(){
+  const selected=[...el.gapSkillList.querySelectorAll('.gap-skill-check:checked')]
+    .map(input=>gapMarketSkills[Number(input.dataset.idx)]?.skill)
+    .filter(Boolean);
+  const extra=normalizeSkillText(el.gapExtraInput.value);
+  return [...new Set([...selected,...extra])];
+}
+async function runGapAnalysis(){
+  const job=el.gapJobInput.value.trim();if(!job)return;
+  const userSkills=collectGapSkills();
+  el.btnGapAnalyze.disabled=true;
+  el.gapResult.innerHTML='<div class="msg-loading"></div>';
+  try{
+    const result=await api.skillGap(job,userSkills,15);
+    if(result.code&&result.code!==200)throw new Error(result.detail||'分析失败');
+    renderGapResult(result);
+  }catch(e){
+    el.gapResult.innerHTML='<div class="radar-empty">请求出错: '+esc(e.message)+'</div>';
+  }finally{
+    el.btnGapAnalyze.disabled=false;
+  }
+}
+function renderGapResult(result){
+  const ratio=Number(result.coverage_ratio)||0;
+  const pct=Math.round(ratio*100);
+  const status=ratio>=0.7?'竞争力强':ratio>=0.4?'需要提升':'差距较大';
+  const matched=result.matched_skills||[];
+  const missing=result.missing_skills||[];
+  const priority=result.priority_order||[];
+  const list=(items,cls)=>items.length?items.map(item=>{
+    const name=skillTitle(item);
+    const rate=typeof item==='string'?0:marketRate(item);
+    const rateText=rate?'<span>'+rate+'%</span>':'';
+    return '<li><span>'+esc(name)+'</span>'+rateText+'</li>';
+  }).join(''):'<li class="gap-muted">暂无</li>';
+
+  el.gapResult.innerHTML='<div class="gap-score">'
+    +'<div><div class="gap-label">匹配度</div><div class="gap-score-num">'+pct+'%</div></div>'
+    +'<span class="gap-status '+priorityClass(pct)+'">'+status+'</span>'
+    +'</div>'
+    +'<div class="gap-progress"><span style="width:'+Math.min(Math.max(pct,3),100)+'%"></span></div>'
+    +'<div class="gap-summary">'+esc(result.summary||'暂无摘要')+'</div>'
+    +'<div class="gap-result-grid">'
+    +'<div class="gap-result-block matched"><div class="gap-block-title">已匹配</div><ul>'+list(matched,'matched')+'</ul></div>'
+    +'<div class="gap-result-block missing"><div class="gap-block-title">待补齐</div><ul>'+list(missing,'missing')+'</ul></div>'
+    +'</div>'
+    +'<div class="gap-priority"><div class="gap-block-title">学习优先级</div><div class="gap-priority-tags">'
+    +(priority.length?priority.map((p,i)=>'<span>'+(i+1)+'. '+esc(p)+'</span>').join(''):'<span>暂无</span>')
+    +'</div></div>';
+}
+
+el.btnGapLoad.addEventListener('click',loadGapMarketSkills);
+el.gapJobInput.addEventListener('keydown',e=>{if(e.key==='Enter')loadGapMarketSkills();});
+el.btnGapAnalyze.addEventListener('click',runGapAnalysis);
+el.btnGapClear.addEventListener('click',()=>{
+  el.gapSkillList.querySelectorAll('.gap-skill-check').forEach(c=>{c.checked=false;});
+  el.gapExtraInput.value='';
+});
+$('gapTagsToggle').addEventListener('click',()=>{
+  const tags=$('gapQuickTags');
+  const toggle=$('gapTagsToggle');
+  tags.classList.toggle('collapsed');
+  toggle.classList.toggle('open');
+});
+
+// ═══════════════════════════════════════════════
+// 视图4: 深度研究
 // ═══════════════════════════════════════════════
 el.btnResearch.addEventListener('click',async()=>{
   const text=el.researchInput.value.trim();if(!text)return;
@@ -311,7 +481,7 @@ el.btnResearch.addEventListener('click',async()=>{
 el.researchInput.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();el.btnResearch.click();}});
 
 // ═══════════════════════════════════════════════
-// 视图4: 用户中心
+// 视图5: 用户中心
 // ═══════════════════════════════════════════════
 async function loadUserCenter(){
   const name=localStorage.getItem('js_username')||('用户_'+threadId.slice(0,8));

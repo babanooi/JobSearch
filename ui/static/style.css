@@ -274,6 +274,90 @@ cite-warn{color:var(--gold);font-size:0.55rem;margin-left:3px;}
 .skill-tag.cool{background:rgba(100,116,139,0.1);color:var(--text-dim);}
 .skill-tag:hover{box-shadow:0 0 12px rgba(59,130,246,0.2);}
 
+/* ═══ 技能差距视图 ═══ */
+.gap-top{padding:1.2rem 2rem 0.5rem;}
+.gap-search{display:flex;gap:0.5rem;max-width:620px;}
+.gap-search input{
+  flex:1;padding:0.6rem 1rem;background:var(--bg-card);border:1px solid var(--border);
+  border-radius:var(--radius);font-family:var(--font);font-size:0.88rem;color:var(--text);outline:none;
+}
+.gap-search input:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-glow);}
+.gap-search button,.gap-analyze-btn{
+  padding:0.6rem 1.2rem;background:var(--blue);color:#fff;border:none;border-radius:var(--radius);
+  font-weight:600;cursor:pointer;transition:var(--transition);white-space:nowrap;
+}
+.gap-search button:hover,.gap-analyze-btn:hover{background:#2563eb;}
+.gap-search button:disabled,.gap-analyze-btn:disabled{opacity:0.45;cursor:not-allowed;}
+.gap-body{
+  flex:1;min-height:0;display:grid;grid-template-columns:minmax(320px,0.95fr) minmax(340px,1.2fr);
+  gap:1rem;padding:0 2rem 1.5rem;overflow:hidden;
+}
+.gap-column,.gap-result{
+  min-height:0;overflow-y:auto;background:rgba(17,19,24,0.78);border:1px solid var(--border);
+  border-radius:var(--radius);padding:1rem;
+}
+.gap-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:0.8rem;margin-bottom:0.8rem;}
+.gap-label{font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-dim);}
+.gap-subtle{font-size:0.68rem;color:var(--text-muted);margin-top:0.2rem;}
+.gap-mini-btn{
+  padding:0.3rem 0.55rem;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);
+  color:var(--text-dim);font-size:0.68rem;cursor:pointer;transition:var(--transition);
+}
+.gap-mini-btn:hover{border-color:var(--border-active);color:var(--text);}
+.gap-skill-list{display:flex;flex-direction:column;gap:0.35rem;min-height:150px;}
+.gap-skill-row{
+  display:grid;grid-template-columns:22px minmax(0,1fr) 46px;align-items:center;gap:0.55rem;
+  padding:0.45rem 0.55rem;border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:rgba(8,9,13,0.48);cursor:pointer;transition:var(--transition);
+}
+.gap-skill-row:hover{border-color:var(--border-active);background:var(--bg-hover);}
+.gap-skill-row input{accent-color:var(--blue);}
+.gap-skill-main{min-width:0;display:grid;gap:0.25rem;}
+.gap-skill-name{font-size:0.78rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gap-skill-bar{height:4px;background:rgba(255,255,255,0.06);border-radius:999px;overflow:hidden;}
+.gap-skill-bar span{display:block;height:100%;background:linear-gradient(90deg,var(--blue),#6366f1);border-radius:999px;}
+.gap-skill-rate{font-family:var(--mono);font-size:0.68rem;text-align:right;}
+.gap-skill-rate.high,.gap-status.high{color:var(--red);}
+.gap-skill-rate.mid,.gap-status.mid{color:var(--gold);}
+.gap-skill-rate.low,.gap-status.low{color:var(--green);}
+.gap-extra{margin-top:1rem;display:grid;gap:0.45rem;}
+.gap-extra textarea{
+  width:100%;resize:vertical;min-height:74px;padding:0.65rem 0.8rem;background:var(--bg);
+  border:1px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font);
+  color:var(--text);outline:none;line-height:1.5;
+}
+.gap-extra textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-glow);}
+.gap-analyze-btn{width:100%;margin-top:0.9rem;}
+.gap-result-empty{display:flex;height:100%;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.84rem;}
+.gap-score{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:0.8rem;}
+.gap-score-num{font-size:2.1rem;font-weight:800;line-height:1;color:var(--text);margin-top:0.25rem;}
+.gap-status{
+  padding:0.25rem 0.6rem;border:1px solid var(--border);border-radius:999px;
+  background:rgba(255,255,255,0.03);font-size:0.72rem;font-weight:700;
+}
+.gap-progress{height:8px;background:rgba(255,255,255,0.06);border-radius:999px;overflow:hidden;margin-bottom:0.9rem;}
+.gap-progress span{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--green));border-radius:999px;}
+.gap-summary{
+  padding:0.75rem 0.85rem;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.16);
+  border-radius:var(--radius-sm);font-size:0.8rem;line-height:1.65;color:var(--text);
+}
+.gap-result-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;margin-top:0.9rem;}
+.gap-result-block{border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.8rem;background:rgba(8,9,13,0.42);}
+.gap-result-block.matched{border-left:3px solid var(--green);}
+.gap-result-block.missing{border-left:3px solid var(--red);}
+.gap-block-title{font-size:0.72rem;font-weight:700;color:var(--text);margin-bottom:0.55rem;}
+.gap-result-block ul{list-style:none;display:flex;flex-direction:column;gap:0.38rem;}
+.gap-result-block li{display:flex;align-items:center;justify-content:space-between;gap:0.7rem;font-size:0.74rem;color:var(--text-dim);}
+.gap-result-block li span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gap-result-block li span:last-child{font-family:var(--mono);font-size:0.66rem;color:var(--text-muted);}
+.gap-result-block li.gap-muted{color:var(--text-muted);}
+.gap-priority{margin-top:0.9rem;}
+.gap-priority-tags{display:flex;flex-wrap:wrap;gap:0.4rem;}
+.gap-priority-tags span{
+  padding:0.3rem 0.65rem;border-radius:999px;background:var(--gold-glow);
+  color:var(--gold);font-size:0.7rem;font-weight:600;
+}
+
 /* ═══ 用户中心视图 ═══ */
 #viewUser{padding:2rem;overflow-y:auto;}
 .user-hero{display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;}
@@ -324,6 +408,9 @@ cite-warn{color:var(--gold);font-size:0.55rem;margin-left:3px;}
   .research-grid{grid-template-columns:1fr;}
   .radar-results{flex-direction:column;}
   .radar-chart-container{align-self:center;}
+  .gap-body{grid-template-columns:1fr;overflow-y:auto;}
+  .gap-column,.gap-result{overflow:visible;}
+  .gap-result-grid{grid-template-columns:1fr;}
   .user-stats{grid-template-columns:1fr 1fr;}
   #insightPanel{display:none;}
   #sessionPanel{width:180px;min-width:180px;}
