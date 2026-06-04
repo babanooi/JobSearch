@@ -3,10 +3,10 @@ import time
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from models.database import init_database
 from agents.registry import registry
@@ -116,6 +116,26 @@ def get_task(task_id: str):
 def cancel_task(task_id: str):
     ok = task_manager.cancel(task_id)
     return {"code": 200, "cancelled": ok}
+
+
+# ── 技能差距分析 ──
+class SkillGapRequest(BaseModel):
+    job_name: str
+    user_skills: list[str] = Field(default_factory=list)
+    top_n: int = Field(default=15, ge=1, le=50)
+
+
+@app.post("/skill_gap")
+def skill_gap(request: SkillGapRequest):
+    if not request.job_name or not request.job_name.strip():
+        raise HTTPException(status_code=400, detail="job_name 不能为空")
+    from services.skill_gap import analyze_skill_gap
+    result = analyze_skill_gap(
+        job_name=request.job_name,
+        user_skills=request.user_skills,
+        top_n=request.top_n,
+    )
+    return {"code": 200, **result}
 
 
 # ── 深度研究（直接走 research_graph，不经过 ChatAgent） ──
