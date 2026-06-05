@@ -205,8 +205,7 @@ async function deleteConversation(tid){
 
   try{
     await api.deleteConversation(tid);
-    // 删除成功，从 deletedThreads 移除（后端已确认删除）
-    deletedThreads.delete(tid);
+    // 保留在 deletedThreads 中，防止 refreshSidebar 时 checkpoint 孤儿会话重新出现
     toast('已删除对话');
   }catch(e){
     // 删除失败，恢复：从 deletedThreads 移除，刷新侧边栏让它重新出现

@@ -82,6 +82,19 @@ def prune_old_checkpoints(thread_id: str):
         logger.warning(f"checkpoint 清理失败: {e}")
 
 
+def delete_checkpoint_thread(thread_id: str):
+    """删除指定 thread_id 的所有 checkpoint 数据（会话彻底删除时调用）"""
+    if not DB_PATH.exists():
+        return
+    try:
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            conn.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
+            conn.commit()
+            logger.info(f"checkpoint 删除: thread={thread_id[:8]}...")
+    except Exception as e:
+        logger.warning(f"checkpoint 删除失败: {e}")
+
+
 def compress_history(messages: list[dict], max_rounds: int = MAX_MESSAGE_ROUNDS,
                      previous_summary: str = "") -> dict:
     """

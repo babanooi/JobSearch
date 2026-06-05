@@ -381,7 +381,7 @@ def save_conversation(user_id: int, thread_id: str, title: str = ""):
 
 
 def delete_conversation_data(thread_id: str, user_id: int | None = None) -> dict:
-    """删除单个会话索引和摘要，返回删除统计。"""
+    """删除单个会话：MySQL 索引/摘要 + SqliteSaver checkpoint"""
     with SessionLocal() as session:
         query = session.query(Conversation).filter(
             Conversation.thread_id == thread_id
@@ -393,6 +393,13 @@ def delete_conversation_data(thread_id: str, user_id: int | None = None) -> dict
             Summary.thread_id == thread_id
         ).delete(synchronize_session=False)
         session.commit()
+
+    # 同步清理 SqliteSaver checkpoint，防止孤儿会话
+    try:
+        from memory.short_term import delete_checkpoint_thread
+        delete_checkpoint_thread(thread_id)
+    except Exception as e:
+        logger.warning(f"checkpoint 清理失败: {e}")
 
     logger.info(
         f"删除会话: thread={thread_id[:8]}..., user_id={user_id}, "
