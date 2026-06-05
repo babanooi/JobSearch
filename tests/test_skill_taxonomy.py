@@ -41,3 +41,22 @@ def test_confidence_metadata():
     meta = assess_skill_quality("需求分析", job_name="产品经理")
     assert meta["accepted"] is True
     assert meta["confidence"] == "high"
+
+
+def test_enrich_skill_item_returns_quality_fields():
+    """enrich_skill_item 应返回 confidence 和 quality_reasons"""
+    from tools.skill_taxonomy import enrich_skill_item
+    item = {"skill": "Python", "count": 30, "total_jds": 15}
+    result = enrich_skill_item(item, job_name="Python后端")
+    assert result is not None
+    assert result["skill"] == "Python"
+    assert "confidence" in result
+    assert "quality_reasons" in result
+
+
+def test_enrich_skill_item_rejects_broad_term():
+    """enrich_skill_item 对泛词应返回 None"""
+    from tools.skill_taxonomy import enrich_skill_item
+    item = {"skill": "人工智能", "count": 10, "total_jds": 15}
+    result = enrich_skill_item(item, job_name="ai产品经理")
+    assert result is None

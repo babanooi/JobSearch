@@ -227,9 +227,16 @@ def get_analyzed_jobs():
 # ── 技能排名 ──
 @app.get("/skill_rank/{job_name}")
 def get_skill_rank(job_name: str, top_n: int = 10):
+    from services.skill_gap import filter_market_skills, estimate_market_confidence
     job_name = normalize_job_name(job_name)
     logger.info(f"GET /skill_rank/{job_name} top_n={top_n}")
-    rank = db.get_skill_rank(job_name, top_n)
+
+    # 多取一些原始数据，过滤后再截取
+    raw_rank = db.get_skill_rank(job_name, min(top_n * 2, 50))
+
+    # 过滤低质量泛词，每项带 confidence + quality_reasons
+    rank = filter_market_skills(raw_rank, job_name=job_name, top_n=top_n)
+
     # JD数量 + 更新时间：优先 jd_documents（精确），回退 job_skills.total_jds + last_seen_at
     from models.database import SessionLocal
     from sqlalchemy import text
@@ -254,7 +261,18 @@ def get_skill_rank(job_name: str, top_n: int = 10):
                 {"job": job_name},
             ).scalar()
     last_update_str = last_update.strftime("%Y-%m-%d %H:%M") if last_update else ""
-    return {"code": 200, "data": rank, "total_jds": jd_total, "last_update": last_update_str}
+
+    # 置信度
+    conf = estimate_market_confidence(rank, raw_count=len(raw_rank), total_jds=jd_total or 0)
+
+    return {
+        "code": 200,
+        "data": rank,
+        "total_jds": jd_total,
+        "last_update": last_update_str,
+        "confidence": conf["confidence"],
+        "filtered_count": conf["filtered_count"],
+    }
 
 
 # ── 统计 ──

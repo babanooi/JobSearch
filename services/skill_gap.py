@@ -12,6 +12,30 @@ def is_low_quality_skill(skill: str) -> bool:
     return not assess_skill_quality(skill)["accepted"]
 
 
+def filter_market_skills(raw_market: list[dict], job_name: str = "", top_n: int = 15) -> list[dict]:
+    """公共过滤函数：过滤低质量技能，截取 top_n，每项带 confidence + quality_reasons。"""
+    market = []
+    for item in raw_market:
+        enriched = enrich_skill_item(item, job_name=job_name)
+        if enriched:
+            market.append(enriched)
+    return market[:top_n]
+
+
+def estimate_market_confidence(market: list[dict], raw_count: int = 0, total_jds: int = 0) -> dict:
+    """评估市场数据置信度，返回 {confidence, filtered_count}。"""
+    filtered_count = raw_count - len(market)
+    if len(market) < 5:
+        confidence = "low"
+    elif total_jds < 5:
+        confidence = "low"
+    elif filtered_count > raw_count * 0.3:
+        confidence = "medium"
+    else:
+        confidence = "high"
+    return {"confidence": confidence, "filtered_count": filtered_count}
+
+
 def _normalize_skill(skill) -> str:
     """归一化技能名：防御 None/非字符串 + strip + 别名表 + 首字母大写"""
     if not isinstance(skill, str):
@@ -73,25 +97,12 @@ def analyze_skill_gap(
             "summary": f"暂无「{job_name}」的市场技能数据，请先在对话中分析该岗位。",
         }
 
-    # 过滤低质量技能，并带上单项置信度
-    market = []
-    for item in raw_market:
-        enriched = enrich_skill_item(item, job_name=job_name)
-        if enriched:
-            market.append(enriched)
-    filtered_count = len(raw_market) - len(market)
-    market = market[:top_n]  # 截取 top_n
-
-    # 置信度评估
+    # 公共过滤
+    market = filter_market_skills(raw_market, job_name=job_name, top_n=top_n)
     total_jds = market[0].get("total_jds", 0) if market else 0
-    if len(market) < 5:
-        confidence = "low"
-    elif total_jds < 5:
-        confidence = "low"
-    elif filtered_count > len(raw_market) * 0.3:
-        confidence = "medium"
-    else:
-        confidence = "high"
+    conf = estimate_market_confidence(market, raw_count=len(raw_market), total_jds=total_jds)
+    confidence = conf["confidence"]
+    filtered_count = conf["filtered_count"]
 
     # 归一化用户技能并匹配
     user_normalized = set()

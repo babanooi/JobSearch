@@ -81,6 +81,7 @@ const el={
   radarInput:$('radarInput'),btnRadarSearch:$('btnRadarSearch'),radarQuickTags:$('radarQuickTags'),radarBody:$('radarBody'),
   gapJobInput:$('gapJobInput'),btnGapLoad:$('btnGapLoad'),gapQuickTags:$('gapQuickTags'),gapSkillList:$('gapSkillList'),
   gapMarketMeta:$('gapMarketMeta'),gapExtraInput:$('gapExtraInput'),btnGapAnalyze:$('btnGapAnalyze'),btnGapClear:$('btnGapClear'),gapResult:$('gapResult'),
+  btnGapExportFeedback:$('btnGapExportFeedback'),btnGapClearFeedback:$('btnGapClearFeedback'),
   researchInput:$('researchInput'),btnResearch:$('btnResearch'),researchTimeline:$('researchTimeline'),researchBody:$('researchBody'),
   userAvatar:$('userAvatar'),userName:$('userName'),userMeta:$('userMeta'),userStats:$('userStats'),
   insightContent:$('insightContent'),toastContainer:$('toastContainer'),
@@ -326,7 +327,7 @@ async function loadGapMarketSkills(){
     const res=await api.skillRank(job,15);
     gapMarketSkills=res.data||[];
     gapTotalJds=Number(res.total_jds)||Number(gapMarketSkills[0]?.total_jds)||0;
-    renderGapSkillList(res.last_update||'');
+    renderGapSkillList(res.last_update||'',res.confidence||'high',res.filtered_count||0);
   }catch(e){
     el.gapSkillList.innerHTML='<div class="radar-empty">请求出错: '+esc(e.message)+'</div>';
   }finally{
@@ -360,7 +361,7 @@ async function triggerGapAutoAnalyze(job){
     el.gapSkillList.innerHTML='<div class="radar-empty">分析失败: '+esc(e.message)+'</div>';
   }
 }
-function renderGapSkillList(lastUpdate){
+function renderGapSkillList(lastUpdate,confidence,filteredCount){
   if(!gapMarketSkills.length){
     el.gapMarketMeta.textContent='暂无数据';
     el.gapSkillList.innerHTML='<div class="radar-empty" style="text-align:center;line-height:2;">'
@@ -375,16 +376,40 @@ function renderGapSkillList(lastUpdate){
   const meta=[];
   if(gapTotalJds)meta.push(gapTotalJds+' 条 JD');
   if(lastUpdate)meta.push('更新 '+lastUpdate);
-  el.gapMarketMeta.textContent=meta.join(' · ')||gapCurrentJob;
+  if(confidence==='low')meta.push('<span style="color:var(--gold)">⚠ 样本较少</span>');
+  if(filteredCount>0)meta.push('已过滤 '+filteredCount+' 个泛词');
+  el.gapMarketMeta.innerHTML=meta.join(' · ')||gapCurrentJob;
   el.gapSkillList.innerHTML=gapMarketSkills.map((s,i)=>{
     const rate=marketRate(s);
     const cls=priorityClass(rate);
-    return '<label class="gap-skill-row">'
-      +'<input type="checkbox" class="gap-skill-check" data-idx="'+i+'">'
-      +'<span class="gap-skill-main"><span class="gap-skill-name">'+esc(s.skill)+'</span><span class="gap-skill-bar"><span style="width:'+Math.max(rate,4)+'%"></span></span></span>'
+    const fb=applyFeedbackToSkill(s.skill,gapCurrentJob);
+    const fbReject=fb.cls==='fb-rejected';
+    const fbImportant=fb.cls==='fb-important';
+    const rowCls='gap-skill-row'+(fbReject?' fb-rejected':'')+(fbImportant?' fb-important':'');
+    return '<label class="'+rowCls+'">'
+      +'<input type="checkbox" class="gap-skill-check" data-idx="'+i+'"'+(fbReject?' disabled':'')+'>'
+      +'<span class="gap-skill-main"><span class="gap-skill-name">'+(fbImportant?'<span class="fb-imp-icon">★</span>':'')+esc(s.skill)+'</span><span class="gap-skill-bar"><span style="width:'+Math.max(rate,4)+'%"></span></span></span>'
       +'<span class="gap-skill-rate '+cls+'">'+rate+'%</span>'
+      +'<span class="gap-skill-fb">'
+      +'<button class="fb-btn fb-btn-reject" data-skill="'+esc(s.skill)+'" title="不是技能">✕</button>'
+      +'<button class="fb-btn fb-btn-important" data-skill="'+esc(s.skill)+'" title="重要技能">★</button>'
+      +'</span>'
       +'</label>';
   }).join('');
+  // 反馈按钮事件
+  el.gapSkillList.querySelectorAll('.fb-btn-reject').forEach(btn=>{btn.addEventListener('click',e=>{
+    e.preventDefault();e.stopPropagation();
+    addSkillFeedback(gapCurrentJob,btn.dataset.skill,'reject');
+    renderGapSkillList(lastUpdate,confidence,filteredCount);
+    renderFeedbackSummary(gapCurrentJob);
+  });});
+  el.gapSkillList.querySelectorAll('.fb-btn-important').forEach(btn=>{btn.addEventListener('click',e=>{
+    e.preventDefault();e.stopPropagation();
+    addSkillFeedback(gapCurrentJob,btn.dataset.skill,'important');
+    renderGapSkillList(lastUpdate,confidence,filteredCount);
+    renderFeedbackSummary(gapCurrentJob);
+  });});
+  renderFeedbackSummary(gapCurrentJob);
 }
 function collectGapSkills(){
   const selected=[...el.gapSkillList.querySelectorAll('.gap-skill-check:checked')]
@@ -444,6 +469,55 @@ function renderGapResult(result){
     +'</div></div>';
 }
 
+// ── 技能反馈 localStorage ──
+function getSkillFeedback(job,skill){
+  try{return JSON.parse(localStorage.getItem('joblab_skill_feedback')||'[]').find(f=>f.job_name===job&&f.skill===skill)||null;}catch(_){return null;}
+}
+function getJobFeedback(job){
+  try{return JSON.parse(localStorage.getItem('joblab_skill_feedback')||'[]').filter(f=>f.job_name===job);}catch(_){return[];}
+}
+function addSkillFeedback(job,skill,action){
+  try{
+    const all=JSON.parse(localStorage.getItem('joblab_skill_feedback')||'[]');
+    const idx=all.findIndex(f=>f.job_name===job&&f.skill===skill);
+    if(idx>=0){all[idx]={...all[idx],action,created_at:new Date().toISOString()};}
+    else{all.push({job_name:job,skill,action,created_at:new Date().toISOString()});}
+    localStorage.setItem('joblab_skill_feedback',JSON.stringify(all));
+  }catch(_){}
+}
+function clearJobFeedback(job){
+  try{
+    const all=JSON.parse(localStorage.getItem('joblab_skill_feedback')||'[]');
+    localStorage.setItem('joblab_skill_feedback',JSON.stringify(all.filter(f=>f.job_name!==job)));
+  }catch(_){}
+}
+function exportSkillFeedback(){
+  try{
+    const data=localStorage.getItem('joblab_skill_feedback')||'[]';
+    navigator.clipboard.writeText(data).then(()=>toast('反馈已复制到剪贴板')).catch(()=>toast('复制失败，请手动导出'));
+  }catch(_){toast('导出失败');}
+}
+function renderFeedbackSummary(job){
+  const fb=getJobFeedback(job);
+  const rej=fb.filter(f=>f.action==='reject').length;
+  const imp=fb.filter(f=>f.action==='important').length;
+  const el=$('gapFeedbackSummary');
+  if(!el)return;
+  if(!rej&&!imp){el.innerHTML='';return;}
+  let h='<span class="fb-summary-item">标记：';
+  if(rej)h+='<span class="fb-rej">✕ '+rej+' 个非技能</span>';
+  if(imp)h+=(rej?' · ':'')+'<span class="fb-imp">★ '+imp+' 个重要</span>';
+  h+='</span>';
+  el.innerHTML=h;
+}
+function applyFeedbackToSkill(skill,job){
+  const fb=getSkillFeedback(job,skill);
+  if(!fb)return{cls:'',icon:''};
+  if(fb.action==='reject')return{cls:'fb-rejected',icon:'✕'};
+  if(fb.action==='important')return{cls:'fb-important',icon:'★'};
+  return{cls:'',icon:''};
+}
+
 el.btnGapLoad.addEventListener('click',loadGapMarketSkills);
 el.gapJobInput.addEventListener('keydown',e=>{if(e.key==='Enter')loadGapMarketSkills();});
 el.btnGapAnalyze.addEventListener('click',runGapAnalysis);
@@ -456,6 +530,14 @@ $('gapTagsToggle').addEventListener('click',()=>{
   const toggle=$('gapTagsToggle');
   tags.classList.toggle('collapsed');
   toggle.classList.toggle('open');
+});
+el.btnGapExportFeedback.addEventListener('click',exportSkillFeedback);
+el.btnGapClearFeedback.addEventListener('click',()=>{
+  if(!gapCurrentJob)return;
+  clearJobFeedback(gapCurrentJob);
+  renderGapSkillList('',0,0);
+  renderFeedbackSummary(gapCurrentJob);
+  toast('已清空「'+gapCurrentJob+'」的反馈');
 });
 
 // ═══════════════════════════════════════════════

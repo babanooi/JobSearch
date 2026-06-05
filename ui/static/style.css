@@ -306,7 +306,7 @@ cite-warn{color:var(--gold);font-size:0.55rem;margin-left:3px;}
 .gap-mini-btn:hover{border-color:var(--border-active);color:var(--text);}
 .gap-skill-list{display:flex;flex-direction:column;gap:0.35rem;min-height:150px;}
 .gap-skill-row{
-  display:grid;grid-template-columns:22px minmax(0,1fr) 46px;align-items:center;gap:0.55rem;
+  display:grid;grid-template-columns:22px minmax(0,1fr) 46px auto;align-items:center;gap:0.55rem;
   padding:0.45rem 0.55rem;border:1px solid var(--border);border-radius:var(--radius-sm);
   background:rgba(8,9,13,0.48);cursor:pointer;transition:var(--transition);
 }
@@ -320,6 +320,24 @@ cite-warn{color:var(--gold);font-size:0.55rem;margin-left:3px;}
 .gap-skill-rate.high,.gap-status.high{color:var(--red);}
 .gap-skill-rate.mid,.gap-status.mid{color:var(--gold);}
 .gap-skill-rate.low,.gap-status.low{color:var(--green);}
+.gap-skill-fb{display:flex;gap:0.25rem;margin-left:0.3rem;}
+.fb-btn{
+  width:20px;height:20px;border:1px solid var(--border);border-radius:50%;
+  background:transparent;font-size:0.6rem;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:var(--transition);opacity:0.4;color:var(--text-dim);
+}
+.gap-skill-row:hover .fb-btn{opacity:0.8;}
+.fb-btn-reject:hover{background:rgba(239,68,68,0.12);color:var(--red);border-color:rgba(239,68,68,0.3);}
+.fb-btn-important:hover{background:rgba(245,158,11,0.12);color:var(--gold);border-color:rgba(245,158,11,0.3);}
+.gap-skill-row.fb-rejected{opacity:0.35;border-style:dashed;}
+.gap-skill-row.fb-rejected .gap-skill-check{opacity:0.3;}
+.gap-skill-row.fb-important{border-color:rgba(245,158,11,0.35);}
+.fb-imp-icon{color:var(--gold);margin-right:0.2rem;font-size:0.7rem;}
+.gap-feedback-summary{font-size:0.65rem;color:var(--text-dim);padding:0.3rem 0.55rem;margin-top:0.3rem;}
+.fb-summary-item{display:flex;gap:0.5rem;}
+.fb-rej{color:var(--red);}
+.fb-imp{color:var(--gold);}
+.gap-feedback-actions{display:flex;gap:0.4rem;padding:0.2rem 0;}
 .gap-extra{margin-top:1rem;display:grid;gap:0.45rem;}
 .gap-extra textarea{
   width:100%;resize:vertical;min-height:74px;padding:0.65rem 0.8rem;background:var(--bg);

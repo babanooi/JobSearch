@@ -482,6 +482,18 @@ V1.1 先做“诊断结果 + 学习优先级”，V2 再接学习资源库，避
 - [x] `/skill_gap` 输出技能项增加单项 `confidence` 和 `quality_reasons`
 - [x] 新增离线评估脚本：`scripts/evaluate_skill_quality.py`
 - [x] 新增 taxonomy 单元测试，覆盖 AI 产品经理泛词问题
+- [x] `/skill_rank` 输出层质量治理：复用 `filter_market_skills` + `estimate_market_confidence`
+- [x] 技能差距勾选列表不再直接暴露低质量泛词（AI、人工智能、计算机科学等）
+- [x] `filtered_count` 和 `confidence` 用于前端解释数据可信度
+- [x] 公共函数 `filter_market_skills` + `estimate_market_confidence` 供 `/skill_rank` 和 `/skill_gap` 共用
+- [x] 技能质量人工反馈闭环（localStorage MVP）：
+  - 每个技能旁可标记"不是技能"或"重要技能"
+  - reject 的技能灰化+禁用勾选，important 的技能加金色★标记
+  - 反馈摘要区域显示当前岗位的 reject/important 数量
+  - 导出反馈到剪贴板（JSON）
+  - 清空当前岗位反馈
+  - 刷新页面后反馈仍生效（localStorage 持久化）
+  - 后续可迁移到数据库，作为 taxonomy 迭代样本来源
 
 ### V2.0 — 功能扩展
 

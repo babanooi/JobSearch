@@ -184,3 +184,49 @@ def test_service_layer_top_n_over_50():
     from services.skill_gap import analyze_skill_gap
     result = analyze_skill_gap("Python后端", ["Python"], top_n=100)
     assert len(result["market_skills"]) <= 50
+
+
+def test_filter_market_skills_filters_broad_terms():
+    """filter_market_skills 会过滤掉泛词"""
+    from services.skill_gap import filter_market_skills
+    raw = [
+        {"skill": "Python", "count": 30, "total_jds": 15},
+        {"skill": "人工智能", "count": 10, "total_jds": 15},
+        {"skill": "AI", "count": 8, "total_jds": 15},
+        {"skill": "计算机科学", "count": 5, "total_jds": 15},
+        {"skill": "Django", "count": 22, "total_jds": 15},
+    ]
+    result = filter_market_skills(raw, job_name="Python后端", top_n=10)
+    names = [s["skill"] for s in result]
+    assert "Python" in names
+    assert "Django" in names
+    assert "人工智能" not in names
+    assert "AI" not in names
+    assert "计算机科学" not in names
+
+
+def test_filter_market_skills_returns_confidence_and_quality_reasons():
+    """过滤后的结果应带 confidence 和 quality_reasons"""
+    from services.skill_gap import filter_market_skills
+    raw = [{"skill": "Python", "count": 30, "total_jds": 15}]
+    result = filter_market_skills(raw, job_name="Python后端", top_n=10)
+    assert len(result) == 1
+    assert "confidence" in result[0]
+    assert "quality_reasons" in result[0]
+
+
+def test_estimate_market_confidence_high():
+    """足够多的已知技能 → high"""
+    from services.skill_gap import estimate_market_confidence
+    market = [{"skill": f"s{i}"} for i in range(10)]
+    result = estimate_market_confidence(market, raw_count=12, total_jds=10)
+    assert result["confidence"] == "high"
+    assert result["filtered_count"] == 2
+
+
+def test_estimate_market_confidence_low_small_sample():
+    """过滤后少于5个技能 → low"""
+    from services.skill_gap import estimate_market_confidence
+    market = [{"skill": f"s{i}"} for i in range(3)]
+    result = estimate_market_confidence(market, raw_count=5, total_jds=2)
+    assert result["confidence"] == "low"
