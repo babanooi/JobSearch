@@ -1,54 +1,15 @@
 """技能差距分析服务 —— 对比用户技能与市场需求"""
-import re
 from tools.skill_guard import normalize_job_name, ALIASES
+from tools.skill_taxonomy import assess_skill_quality, enrich_skill_item
 from memory.long_term import query_skill_rank
 from core.logger import get_logger
 
 logger = get_logger(__name__)
 
-# 过宽泛的领域大类词（单独出现无技能指向性）
-_BROAD_TERMS = {
-    "ai", "iot", "nlp", "api", "net", "orm", "sql",
-    "人工智能", "深度学习", "机器学习", "自然语言", "自然语言处理",
-    "计算机科学", "软件工程", "信息技术", "大数据",
-    "前端", "后端", "服务端", "全栈", "算法", "测试", "运维",
-    "标注", "清洗", "维护", "编码", "调试", "重构", "辅导", "评测",
-    "跨平台", "高性能", "高并发", "硬件设计", "软件代码",
-}
-
-# 动词/动作词（不是技能名）
-_VERBS = {
-    "清洗", "重构", "辅导", "测试", "评审", "评估", "审核", "调研",
-    "排查", "部署", "迁移", "对接", "封装", "拆解",
-}
-
 
 def is_low_quality_skill(skill: str) -> bool:
-    """判断技能是否为低质量泛词"""
-    if not isinstance(skill, str):
-        return True
-    s = skill.strip()
-    if not s:
-        return True
-    lower = s.lower()
-
-    # 过短（1-2 个字符且不是已知缩写）
-    if len(lower) <= 2 and lower not in {"go", "c+", "ai"}:
-        return True
-
-    # 过宽泛领域词
-    if lower in _BROAD_TERMS or s in _BROAD_TERMS:
-        return True
-
-    # 纯动词
-    if s in _VERBS:
-        return True
-
-    # 以"开发"结尾且长度 ≤6（如"后端开发"、"前端开发"是岗位不是技能）
-    if re.match(r"^.{0,4}(开发|工程师|岗位|实习)$", s):
-        return True
-
-    return False
+    """兼容旧测试入口：判断技能是否为低质量泛词。"""
+    return not assess_skill_quality(skill)["accepted"]
 
 
 def _normalize_skill(skill) -> str:
@@ -112,8 +73,12 @@ def analyze_skill_gap(
             "summary": f"暂无「{job_name}」的市场技能数据，请先在对话中分析该岗位。",
         }
 
-    # 过滤低质量技能
-    market = [item for item in raw_market if not is_low_quality_skill(item["skill"])]
+    # 过滤低质量技能，并带上单项置信度
+    market = []
+    for item in raw_market:
+        enriched = enrich_skill_item(item, job_name=job_name)
+        if enriched:
+            market.append(enriched)
     filtered_count = len(raw_market) - len(market)
     market = market[:top_n]  # 截取 top_n
 

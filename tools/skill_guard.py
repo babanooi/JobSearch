@@ -3,6 +3,7 @@ import re
 import json as _json
 from pathlib import Path as _Path
 from core.logger import get_logger
+from tools.skill_taxonomy import assess_skill_quality
 
 logger = get_logger(__name__)
 
@@ -218,6 +219,9 @@ def guard_skill_list(raw_skills: list[str]) -> list[str]:
     cleaned = []
     rejected = []
     for skill in raw_skills:
+        if not isinstance(skill, str):
+            rejected.append(str(skill))
+            continue
         skill = skill.strip()
         if not skill:
             continue
@@ -226,6 +230,10 @@ def guard_skill_list(raw_skills: list[str]) -> list[str]:
             continue
         skill_lower = skill.lower()
         skill = ALIASES.get(skill_lower, skill)
+        meta = assess_skill_quality(skill)
+        if not meta["accepted"]:
+            rejected.append(skill)
+            continue
         cleaned.append(skill)
 
     if rejected:

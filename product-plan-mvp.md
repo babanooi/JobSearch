@@ -473,6 +473,16 @@ V1.1 先做“诊断结果 + 学习优先级”，V2 再接学习资源库，避
 - [x] 数据置信度提示（high/medium/low 三级）
 - [ ] 部署上线
 
+### product-mvp-v0.3 — 技能数据质量治理
+
+- [x] 技能 taxonomy 规则中心化（`tools/skill_taxonomy.py`）
+- [x] 抽取 prompt 加强：只提取可执行硬技能，排除泛领域词/岗位名/职责动词
+- [x] 搜索结果来源质量评分：过滤明显不像招聘 JD 的结果
+- [x] 入库前复用 taxonomy 过滤，减少坏技能进入 `job_skills`
+- [x] `/skill_gap` 输出技能项增加单项 `confidence` 和 `quality_reasons`
+- [x] 新增离线评估脚本：`scripts/evaluate_skill_quality.py`
+- [x] 新增 taxonomy 单元测试，覆盖 AI 产品经理泛词问题
+
 ### V2.0 — 功能扩展
 
 - [ ] 用户注册/登录
@@ -524,10 +534,19 @@ V1.1 先做“诊断结果 + 学习优先级”，V2 再接学习资源库，避
 
 | 方案 | 优先级 | 说明 |
 |------|--------|------|
-| 技能词典白名单 | P0 | 维护已知技能词表，只保留匹配的词 |
-| 岗位类型分类 | P1 | 技术岗/产品岗/运营岗用不同过滤规则 |
+| 技能词典白名单 | P0 | 已建立 taxonomy 初版，后续扩充词表 |
+| 岗位类型分类 | P1 | 已支持 backend/frontend/data/ai/product/test/embedded 初版 |
 | 人工校验入口 | P2 | 允许用户标记"这个不是技能" |
-| 数据源质量评分 | P2 | 根据 JD 来源、公司可信度加权 |
+| 数据源质量评分 | P2 | 已做搜索结果 JD 相关性评分，后续按来源和公司可信度加权 |
+
+### v0.3 本轮实现
+
+1. **taxonomy 中心化**：新增 `tools/skill_taxonomy.py`，统一维护泛词、动作词、岗位名模式、已知技能、岗位类别和质量置信度。
+2. **抽取前约束**：`ExtractAgent` prompt 明确要求只输出可执行技能，并针对产品经理保留 PRD、Axure、需求分析、竞品分析、SQL 等能力。
+3. **来源质量评分**：`tools/search.py` 对搜索结果打 `source_quality`，过滤培训/百科/教程等弱 JD 结果。
+4. **入库前过滤**：`guard_skill_list()` 复用 taxonomy，减少坏技能进入 `job_skills`。
+5. **展示层透传**：`/skill_gap` 的每个市场技能带 `confidence` 和 `quality_reasons`，便于前端或评估脚本解释结果。
+6. **离线评估**：`scripts/evaluate_skill_quality.py` 可统计坏词率、低质量样本和高风险岗位。
 
 ---
 

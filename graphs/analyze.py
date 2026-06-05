@@ -131,7 +131,7 @@ def extract_node(state: AgentState) -> AgentState:
                 combined = "\n\n---\n\n".join(
                     item["content"][:300] for item in batch
                 )
-                futures.append(pool.submit(extract_agent.run, combined))
+                futures.append(pool.submit(extract_agent.run, combined, state["job_name"]))
 
             for f in as_completed(futures):
                 if task and task.is_cancelled():
