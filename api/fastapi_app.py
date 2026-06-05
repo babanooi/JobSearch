@@ -217,6 +217,74 @@ def get_conversations(user_id: int = Query(0), include_orphans: bool = Query(Tru
     return {"code": 200, "conversations": convs}
 
 
+# ── 技能反馈 ──
+class SkillFeedbackRequest(BaseModel):
+    user_id: int
+    job_name: str
+    skill_name: str
+    action: str = Field(pattern="^(reject|important)$")
+
+
+@app.post("/skill_feedback")
+def post_skill_feedback(request: SkillFeedbackRequest):
+    from models.user import SkillFeedback
+    from models.database import SessionLocal as _SessionLocal
+    job_name = normalize_job_name(request.job_name)
+    with _SessionLocal() as session:
+        existing = session.query(SkillFeedback).filter(
+            SkillFeedback.user_id == request.user_id,
+            SkillFeedback.job_name == job_name,
+            SkillFeedback.skill_name == request.skill_name,
+            SkillFeedback.action == request.action,
+        ).first()
+        if not existing:
+            session.add(SkillFeedback(
+                user_id=request.user_id,
+                job_name=job_name,
+                skill_name=request.skill_name,
+                action=request.action,
+            ))
+            session.commit()
+    return {"code": 200, "message": "ok"}
+
+
+@app.get("/skill_feedback/summary")
+def get_skill_feedback_summary(job_name: str, user_id: int = Query(0)):
+    from models.user import SkillFeedback
+    from models.database import SessionLocal as _SessionLocal
+    from sqlalchemy import func as sqlfunc
+    job_name = normalize_job_name(job_name)
+    with _SessionLocal() as session:
+        rows = session.query(
+            SkillFeedback.skill_name,
+            SkillFeedback.action,
+            sqlfunc.count().label("cnt"),
+        ).filter(
+            SkillFeedback.job_name == job_name,
+        ).group_by(SkillFeedback.skill_name, SkillFeedback.action).all()
+
+        # 当前用户的反馈
+        user_rows = set()
+        if user_id:
+            urows = session.query(SkillFeedback.skill_name, SkillFeedback.action).filter(
+                SkillFeedback.job_name == job_name,
+                SkillFeedback.user_id == user_id,
+            ).all()
+            user_rows = {(r[0], r[1]) for r in urows}
+
+    summary = {}
+    for skill, action, cnt in rows:
+        if skill not in summary:
+            summary[skill] = {"reject_count": 0, "important_count": 0, "user_rejected": False, "user_marked_important": False}
+        summary[skill][f"{action}_count"] = cnt
+        if (skill, "reject") in user_rows:
+            summary[skill]["user_rejected"] = True
+        if (skill, "important") in user_rows:
+            summary[skill]["user_marked_important"] = True
+
+    return {"code": 200, "job_name": job_name, "summary": summary}
+
+
 # ── 已分析岗位列表 ──
 @app.get("/skill_rank/_jobs")
 def get_analyzed_jobs():
@@ -226,8 +294,10 @@ def get_analyzed_jobs():
 
 # ── 技能排名 ──
 @app.get("/skill_rank/{job_name}")
-def get_skill_rank(job_name: str, top_n: int = 10):
+def get_skill_rank(job_name: str, top_n: int = 10, user_id: int = Query(0)):
     from services.skill_gap import filter_market_skills, estimate_market_confidence
+    from models.user import SkillFeedback
+    from sqlalchemy import func as sqlfunc
     job_name = normalize_job_name(job_name)
     logger.info(f"GET /skill_rank/{job_name} top_n={top_n}")
 
@@ -237,7 +307,7 @@ def get_skill_rank(job_name: str, top_n: int = 10):
     # 过滤低质量泛词，每项带 confidence + quality_reasons
     rank = filter_market_skills(raw_rank, job_name=job_name, top_n=top_n)
 
-    # JD数量 + 更新时间：优先 jd_documents（精确），回退 job_skills.total_jds + last_seen_at
+    # JD数量 + 更新时间
     from models.database import SessionLocal
     from sqlalchemy import text
     with SessionLocal() as session:
@@ -249,7 +319,6 @@ def get_skill_rank(job_name: str, top_n: int = 10):
             text("SELECT MAX(fetched_at) FROM jd_documents WHERE job_name = :job"),
             {"job": job_name},
         ).scalar()
-        # jd_documents 为空时回退到 job_skills 表
         if not jd_total:
             jd_total = session.execute(
                 text("SELECT COALESCE(MAX(total_jds), 0) FROM job_skills WHERE job_name = :job"),
@@ -260,9 +329,42 @@ def get_skill_rank(job_name: str, top_n: int = 10):
                 text("SELECT MAX(last_seen_at) FROM job_skills WHERE job_name = :job"),
                 {"job": job_name},
             ).scalar()
-    last_update_str = last_update.strftime("%Y-%m-%d %H:%M") if last_update else ""
 
-    # 置信度
+        # 反馈汇总
+        fb_rows = session.query(
+            SkillFeedback.skill_name,
+            SkillFeedback.action,
+            sqlfunc.count().label("cnt"),
+        ).filter(
+            SkillFeedback.job_name == job_name,
+        ).group_by(SkillFeedback.skill_name, SkillFeedback.action).all()
+
+        user_fb = set()
+        if user_id:
+            urows = session.query(SkillFeedback.skill_name, SkillFeedback.action).filter(
+                SkillFeedback.job_name == job_name,
+                SkillFeedback.user_id == user_id,
+            ).all()
+            user_fb = {(r[0], r[1]) for r in urows}
+
+    fb_map = {}
+    for skill, action, cnt in fb_rows:
+        if skill not in fb_map:
+            fb_map[skill] = {"reject_count": 0, "important_count": 0}
+        fb_map[skill][f"{action}_count"] = cnt
+
+    # 给每个技能附加反馈标记
+    for item in rank:
+        s = item["skill"]
+        fb = fb_map.get(s, {})
+        item["reject_count"] = fb.get("reject_count", 0)
+        item["important_count"] = fb.get("important_count", 0)
+        item["user_rejected"] = (s, "reject") in user_fb
+        item["user_marked_important"] = (s, "important") in user_fb
+        item["community_rejected"] = item["reject_count"] >= 3
+        item["community_important"] = item["important_count"] >= 3
+
+    last_update_str = last_update.strftime("%Y-%m-%d %H:%M") if last_update else ""
     conf = estimate_market_confidence(rank, raw_count=len(raw_rank), total_jds=jd_total or 0)
 
     return {

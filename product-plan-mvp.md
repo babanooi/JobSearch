@@ -486,14 +486,25 @@ V1.1 先做“诊断结果 + 学习优先级”，V2 再接学习资源库，避
 - [x] 技能差距勾选列表不再直接暴露低质量泛词（AI、人工智能、计算机科学等）
 - [x] `filtered_count` 和 `confidence` 用于前端解释数据可信度
 - [x] 公共函数 `filter_market_skills` + `estimate_market_confidence` 供 `/skill_rank` 和 `/skill_gap` 共用
-- [x] 技能质量人工反馈闭环（localStorage MVP）：
-  - 每个技能旁可标记"不是技能"或"重要技能"
-  - reject 的技能灰化+禁用勾选，important 的技能加金色★标记
-  - 反馈摘要区域显示当前岗位的 reject/important 数量
-  - 导出反馈到剪贴板（JSON）
-  - 清空当前岗位反馈
-  - 刷新页面后反馈仍生效（localStorage 持久化）
-  - 后续可迁移到数据库，作为 taxonomy 迭代样本来源
+- [x] 技能质量人工反馈闭环（v0.4 localStorage 临时方案 → v0.5 后端闭环）：
+  - POST /skill_feedback：用户标记 reject/important，upsert 去重
+  - GET /skill_feedback/summary：按岗位聚合社区反馈数量
+  - /skill_rank 返回 feedback 标记：reject_count、important_count、user_rejected、community_rejected
+  - 前端按钮调后端 API，localStorage 仅作网络失败兜底
+  - 社区 reject ≥3 的技能降权显示，重要 ≥3 标记"多人标记"
+  - 反馈摘要区域显示社区标记数量
+  - 反馈数据进入数据库，可作为 taxonomy 迭代样本来源
+
+### product-mvp-v0.5 — 技能反馈后端闭环
+
+- [x] 新增 `skill_feedback` 数据表（user_id, job_name, skill_name, action, created_at）
+- [x] POST `/skill_feedback` API（upsert 去重）
+- [x] GET `/skill_feedback/summary` API（按岗位聚合社区反馈）
+- [x] `/skill_rank` 返回 feedback 标记（reject_count, community_rejected 等）
+- [x] 前端按钮调后端 API，localStorage 降级为兜底
+- [x] 社区 reject ≥3 降权，重要 ≥3 标记"多人标记"
+- [x] 移除"导出反馈"主按钮，隐藏为 debug 入口
+- [x] localStorage 反馈仅在网络失败时临时保存
 
 ### V2.0 — 功能扩展
 

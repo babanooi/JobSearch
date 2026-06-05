@@ -39,3 +39,17 @@ class Summary(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, server_default=func.now(), comment="生成时间"
     )
+
+
+class SkillFeedback(Base):
+    """技能质量反馈：用户标记某个技能为 reject 或 important"""
+    __tablename__ = "skill_feedback"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True, comment="反馈用户")
+    job_name: Mapped[str] = mapped_column(String(255), index=True, comment="归一化岗位名")
+    skill_name: Mapped[str] = mapped_column(String(255), comment="技能名")
+    action: Mapped[str] = mapped_column(String(20), comment="reject / important")
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), comment="反馈时间"
+    )

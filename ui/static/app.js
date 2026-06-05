@@ -81,7 +81,7 @@ const el={
   radarInput:$('radarInput'),btnRadarSearch:$('btnRadarSearch'),radarQuickTags:$('radarQuickTags'),radarBody:$('radarBody'),
   gapJobInput:$('gapJobInput'),btnGapLoad:$('btnGapLoad'),gapQuickTags:$('gapQuickTags'),gapSkillList:$('gapSkillList'),
   gapMarketMeta:$('gapMarketMeta'),gapExtraInput:$('gapExtraInput'),btnGapAnalyze:$('btnGapAnalyze'),btnGapClear:$('btnGapClear'),gapResult:$('gapResult'),
-  btnGapExportFeedback:$('btnGapExportFeedback'),btnGapClearFeedback:$('btnGapClearFeedback'),
+  btnGapClearFeedback:$('btnGapClearFeedback'),
   researchInput:$('researchInput'),btnResearch:$('btnResearch'),researchTimeline:$('researchTimeline'),researchBody:$('researchBody'),
   userAvatar:$('userAvatar'),userName:$('userName'),userMeta:$('userMeta'),userStats:$('userStats'),
   insightContent:$('insightContent'),toastContainer:$('toastContainer'),
@@ -383,33 +383,34 @@ function renderGapSkillList(lastUpdate,confidence,filteredCount){
     const rate=marketRate(s);
     const cls=priorityClass(rate);
     const fb=applyFeedbackToSkill(s.skill,gapCurrentJob);
-    const fbReject=fb.cls==='fb-rejected';
-    const fbImportant=fb.cls==='fb-important';
-    const rowCls='gap-skill-row'+(fbReject?' fb-rejected':'')+(fbImportant?' fb-important':'');
+    const fbReject=fb.cls.includes('fb-rejected');
+    const fbImportant=fb.cls.includes('fb-important');
+    const rowCls='gap-skill-row '+fb.cls;
+    const communityNote=fb.community?'<span class="fb-community-note">多人标记</span>':'';
     return '<label class="'+rowCls+'">'
       +'<input type="checkbox" class="gap-skill-check" data-idx="'+i+'"'+(fbReject?' disabled':'')+'>'
-      +'<span class="gap-skill-main"><span class="gap-skill-name">'+(fbImportant?'<span class="fb-imp-icon">★</span>':'')+esc(s.skill)+'</span><span class="gap-skill-bar"><span style="width:'+Math.max(rate,4)+'%"></span></span></span>'
+      +'<span class="gap-skill-main"><span class="gap-skill-name">'+(fbImportant?'<span class="fb-imp-icon">★</span>':'')+esc(s.skill)+communityNote+'</span><span class="gap-skill-bar"><span style="width:'+Math.max(rate,4)+'%"></span></span></span>'
       +'<span class="gap-skill-rate '+cls+'">'+rate+'%</span>'
       +'<span class="gap-skill-fb">'
-      +'<button class="fb-btn fb-btn-reject" data-skill="'+esc(s.skill)+'" title="不是技能">✕</button>'
-      +'<button class="fb-btn fb-btn-important" data-skill="'+esc(s.skill)+'" title="重要技能">★</button>'
+      +'<button class="fb-btn fb-btn-reject'+(fbReject?' active':'')+'" data-skill="'+esc(s.skill)+'" title="不是技能">✕</button>'
+      +'<button class="fb-btn fb-btn-important'+(fbImportant?' active':'')+'" data-skill="'+esc(s.skill)+'" title="重要技能">★</button>'
       +'</span>'
       +'</label>';
   }).join('');
   // 反馈按钮事件
-  el.gapSkillList.querySelectorAll('.fb-btn-reject').forEach(btn=>{btn.addEventListener('click',e=>{
+  el.gapSkillList.querySelectorAll('.fb-btn-reject').forEach(btn=>{btn.addEventListener('click',async e=>{
     e.preventDefault();e.stopPropagation();
-    addSkillFeedback(gapCurrentJob,btn.dataset.skill,'reject');
+    await addSkillFeedback(gapCurrentJob,btn.dataset.skill,'reject');
+    await loadFeedbackSummary(gapCurrentJob);
     renderGapSkillList(lastUpdate,confidence,filteredCount);
-    renderFeedbackSummary(gapCurrentJob);
   });});
-  el.gapSkillList.querySelectorAll('.fb-btn-important').forEach(btn=>{btn.addEventListener('click',e=>{
+  el.gapSkillList.querySelectorAll('.fb-btn-important').forEach(btn=>{btn.addEventListener('click',async e=>{
     e.preventDefault();e.stopPropagation();
-    addSkillFeedback(gapCurrentJob,btn.dataset.skill,'important');
+    await addSkillFeedback(gapCurrentJob,btn.dataset.skill,'important');
+    await loadFeedbackSummary(gapCurrentJob);
     renderGapSkillList(lastUpdate,confidence,filteredCount);
-    renderFeedbackSummary(gapCurrentJob);
   });});
-  renderFeedbackSummary(gapCurrentJob);
+  loadFeedbackSummary(gapCurrentJob);
 }
 function collectGapSkills(){
   const selected=[...el.gapSkillList.querySelectorAll('.gap-skill-check:checked')]
@@ -469,53 +470,78 @@ function renderGapResult(result){
     +'</div></div>';
 }
 
-// ── 技能反馈 localStorage ──
+// ── 技能反馈（后端为主，localStorage 兜底） ──
+let _feedbackCache={};
 function getSkillFeedback(job,skill){
-  try{return JSON.parse(localStorage.getItem('joblab_skill_feedback')||'[]').find(f=>f.job_name===job&&f.skill===skill)||null;}catch(_){return null;}
+  const fb=_feedbackCache[skill];
+  if(!fb)return null;
+  if(fb.user_rejected)return{action:'reject'};
+  if(fb.user_marked_important)return{action:'important'};
+  return null;
 }
-function getJobFeedback(job){
-  try{return JSON.parse(localStorage.getItem('joblab_skill_feedback')||'[]').filter(f=>f.job_name===job);}catch(_){return[];}
+async function loadFeedbackSummary(job){
+  try{
+    const r=await fetch('/skill_feedback/summary?job_name='+encodeURIComponent(job)+'&user_id='+userId);
+    const d=await r.json();
+    _feedbackCache=d.summary||{};
+    renderFeedbackSummary(job);
+  }catch(_){
+    // 兜底：从 localStorage 读
+    try{
+      const local=JSON.parse(localStorage.getItem('joblab_skill_feedback')||'[]').filter(f=>f.job_name===job);
+      _feedbackCache={};
+      local.forEach(f=>{_feedbackCache[f.skill]={[f.action+'_count']:1,['user_'+(f.action==='reject'?'rejected':'marked_important')]:true};});
+      renderFeedbackSummary(job);
+    }catch(__){}
+  }
 }
-function addSkillFeedback(job,skill,action){
+async function addSkillFeedback(job,skill,action){
+  // 先乐观更新本地
   try{
     const all=JSON.parse(localStorage.getItem('joblab_skill_feedback')||'[]');
-    const idx=all.findIndex(f=>f.job_name===job&&f.skill===skill);
-    if(idx>=0){all[idx]={...all[idx],action,created_at:new Date().toISOString()};}
-    else{all.push({job_name:job,skill,action,created_at:new Date().toISOString()});}
+    const idx=all.findIndex(f=>f.job_name===job&&f.skill===skill&&f.action===action);
+    if(idx<0)all.push({job_name:job,skill,action,created_at:new Date().toISOString()});
     localStorage.setItem('joblab_skill_feedback',JSON.stringify(all));
   }catch(_){}
+  try{
+    await fetch('/skill_feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:userId,job_name:job,skill_name:skill,action})});
+    await loadFeedbackSummary(job);
+  }catch(_){
+    toast('反馈暂存，本次未同步');
+  }
 }
 function clearJobFeedback(job){
+  _feedbackCache={};
   try{
     const all=JSON.parse(localStorage.getItem('joblab_skill_feedback')||'[]');
     localStorage.setItem('joblab_skill_feedback',JSON.stringify(all.filter(f=>f.job_name!==job)));
   }catch(_){}
 }
-function exportSkillFeedback(){
-  try{
-    const data=localStorage.getItem('joblab_skill_feedback')||'[]';
-    navigator.clipboard.writeText(data).then(()=>toast('反馈已复制到剪贴板')).catch(()=>toast('复制失败，请手动导出'));
-  }catch(_){toast('导出失败');}
-}
 function renderFeedbackSummary(job){
-  const fb=getJobFeedback(job);
-  const rej=fb.filter(f=>f.action==='reject').length;
-  const imp=fb.filter(f=>f.action==='important').length;
   const el=$('gapFeedbackSummary');
   if(!el)return;
+  let rej=0,imp=0;
+  Object.values(_feedbackCache).forEach(fb=>{rej+=fb.reject_count||0;imp+=fb.important_count||0;});
   if(!rej&&!imp){el.innerHTML='';return;}
-  let h='<span class="fb-summary-item">标记：';
+  let h='<span class="fb-summary-item">社区标记：';
   if(rej)h+='<span class="fb-rej">✕ '+rej+' 个非技能</span>';
   if(imp)h+=(rej?' · ':'')+'<span class="fb-imp">★ '+imp+' 个重要</span>';
   h+='</span>';
   el.innerHTML=h;
 }
 function applyFeedbackToSkill(skill,job){
-  const fb=getSkillFeedback(job,skill);
-  if(!fb)return{cls:'',icon:''};
-  if(fb.action==='reject')return{cls:'fb-rejected',icon:'✕'};
-  if(fb.action==='important')return{cls:'fb-important',icon:'★'};
-  return{cls:'',icon:''};
+  const fb=_feedbackCache[skill];
+  if(!fb)return{cls:'',community:false};
+  const userRej=fb.user_rejected;
+  const userImp=fb.user_marked_important;
+  const communityRej=(fb.reject_count||0)>=3;
+  const communityImp=(fb.important_count||0)>=3;
+  let cls='';
+  if(userRej)cls='fb-rejected';
+  else if(communityRej)cls='fb-community-rejected';
+  if(userImp)cls+=' fb-important';
+  else if(communityImp)cls+=' fb-community-important';
+  return{cls,community:communityRej||communityImp};
 }
 
 el.btnGapLoad.addEventListener('click',loadGapMarketSkills);
@@ -531,8 +557,7 @@ $('gapTagsToggle').addEventListener('click',()=>{
   tags.classList.toggle('collapsed');
   toggle.classList.toggle('open');
 });
-el.btnGapExportFeedback.addEventListener('click',exportSkillFeedback);
-el.btnGapClearFeedback.addEventListener('click',()=>{
+el.btnGapClearFeedback.addEventListener('click',async()=>{
   if(!gapCurrentJob)return;
   clearJobFeedback(gapCurrentJob);
   renderGapSkillList('',0,0);

@@ -230,3 +230,64 @@ def test_estimate_market_confidence_low_small_sample():
     market = [{"skill": f"s{i}"} for i in range(3)]
     result = estimate_market_confidence(market, raw_count=5, total_jds=2)
     assert result["confidence"] == "low"
+
+
+# ── Skill Feedback API 测试 ──
+
+def test_skill_feedback_reject():
+    """reject 能保存"""
+    from api.fastapi_app import app
+    from fastapi.testclient import TestClient
+    c = TestClient(app)
+    r = c.post('/skill_feedback', json={
+        "user_id": 1, "job_name": "Python后端", "skill_name": "人工智能", "action": "reject"
+    })
+    assert r.status_code == 200
+    assert r.json()["code"] == 200
+
+
+def test_skill_feedback_important():
+    """important 能保存"""
+    from api.fastapi_app import app
+    from fastapi.testclient import TestClient
+    c = TestClient(app)
+    r = c.post('/skill_feedback', json={
+        "user_id": 1, "job_name": "Python后端", "skill_name": "Docker", "action": "important"
+    })
+    assert r.status_code == 200
+    assert r.json()["code"] == 200
+
+
+def test_skill_feedback_no_duplicate():
+    """重复反馈不会无限重复"""
+    from api.fastapi_app import app
+    from fastapi.testclient import TestClient
+    c = TestClient(app)
+    # 确保 user 存在（FK 约束）
+    c.get('/user?username=test_dup_user')
+    r = c.get('/users')
+    uid = r.json()['users'][-1]['id']
+    # 插入两次
+    c.post('/skill_feedback', json={"user_id": uid, "job_name": "测试岗", "skill_name": "Python", "action": "reject"})
+    c.post('/skill_feedback', json={"user_id": uid, "job_name": "测试岗", "skill_name": "Python", "action": "reject"})
+    # summary 应该 reject_count=1
+    r = c.get(f'/skill_feedback/summary?job_name=测试岗&user_id={uid}')
+    summary = r.json().get("summary", {})
+    assert summary.get("Python", {}).get("reject_count", 0) == 1
+
+
+def test_skill_feedback_summary_returns_counts():
+    """summary 返回 reject_count / important_count"""
+    from api.fastapi_app import app
+    from fastapi.testclient import TestClient
+    c = TestClient(app)
+    c.post('/skill_feedback', json={"user_id": 1, "job_name": "测试岗位X", "skill_name": "AI", "action": "reject"})
+    c.post('/skill_feedback', json={"user_id": 2, "job_name": "测试岗位X", "skill_name": "AI", "action": "reject"})
+    c.post('/skill_feedback', json={"user_id": 3, "job_name": "测试岗位X", "skill_name": "AI", "action": "reject"})
+    c.post('/skill_feedback', json={"user_id": 1, "job_name": "测试岗位X", "skill_name": "SQL", "action": "important"})
+    r = c.get('/skill_feedback/summary?job_name=测试岗位X&user_id=1')
+    summary = r.json().get("summary", {})
+    assert summary["AI"]["reject_count"] == 3
+    assert summary["AI"]["user_rejected"] is True
+    assert summary["SQL"]["important_count"] == 1
+    assert summary["SQL"]["user_marked_important"] is True
