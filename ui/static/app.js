@@ -38,6 +38,7 @@ let threadId=crypto.randomUUID(),userId=parseInt(localStorage.getItem('js_user_i
 let currentView='chat';
 let allMessages=[];
 const convMessageCache=new Map();
+const deletedThreads=new Set();
 
 // ── API ──
 const api={
@@ -185,11 +186,14 @@ async function switchConv(tid){
 
 async function deleteConversation(tid){
   if(!tid)return;
+  // 立即从 DOM 移除
   const row=document.querySelector('.conv-item-wrap[data-tid="'+tid+'"]');
   if(row)row.remove();
   convMessageCache.delete(tid);
+  deletedThreads.add(tid);
   if(localStorage.getItem(lastThreadKey())===tid)localStorage.removeItem(lastThreadKey());
 
+  // 如果删的是当前会话，切到新会话
   if(tid===threadId){
     threadId=crypto.randomUUID();
     allMessages=[];
@@ -201,9 +205,12 @@ async function deleteConversation(tid){
 
   try{
     await api.deleteConversation(tid);
-    await refreshSidebar();
+    // 删除成功，从 deletedThreads 移除（后端已确认删除）
+    deletedThreads.delete(tid);
     toast('已删除对话');
   }catch(e){
+    // 删除失败，恢复：从 deletedThreads 移除，刷新侧边栏让它重新出现
+    deletedThreads.delete(tid);
     await refreshSidebar();
     toast('删除失败: '+e.message);
   }
@@ -416,11 +423,18 @@ function renderGapResult(result){
     return '<li><span>'+esc(name)+'</span>'+rateText+'</li>';
   }).join(''):'<li class="gap-muted">暂无</li>';
 
+  // 置信度提示
+  const conf=result.confidence||'high';
+  const confHtml=conf==='low'?'<div class="gap-confidence low">⚠ 当前岗位数据样本较少，结果仅供参考</div>'
+    :conf==='medium'?'<div class="gap-confidence medium">ℹ 部分泛词已被过滤，结果基本可信</div>'
+    :'<div class="gap-confidence high">✓ 数据置信度较高</div>';
+
   el.gapResult.innerHTML='<div class="gap-score">'
     +'<div><div class="gap-label">匹配度</div><div class="gap-score-num">'+pct+'%</div></div>'
     +'<span class="gap-status '+priorityClass(pct)+'">'+status+'</span>'
     +'</div>'
     +'<div class="gap-progress"><span style="width:'+Math.min(Math.max(pct,3),100)+'%"></span></div>'
+    +confHtml
     +'<div class="gap-summary">'+esc(result.summary||'暂无摘要')+'</div>'
     +'<div class="gap-result-grid">'
     +'<div class="gap-result-block matched"><div class="gap-block-title">已匹配</div><ul>'+list(matched,'matched')+'</ul></div>'
@@ -571,7 +585,9 @@ $('btnAddUser').addEventListener('click',async()=>{
 async function refreshSidebar(){
   if(!userId)return;
   const convs=await api.conversations(userId);
-  const checked=await Promise.all(convs.map(async c=>({...c,messages:await loadConversationMessages(c.thread_id)})));
+  // 过滤掉本地已标记删除的会话（防止异步删除未完成时重新出现）
+  const filtered=convs.filter(c=>!deletedThreads.has(c.thread_id));
+  const checked=await Promise.all(filtered.map(async c=>({...c,messages:await loadConversationMessages(c.thread_id)})));
   const visible=checked.filter(c=>c.messages.length>0);
   el.convList.innerHTML=visible.length?visible.map(c=>'<div class="conv-item-wrap'+(c.thread_id===threadId?' active':'')+'" data-tid="'+c.thread_id+'"><button class="conv-item" data-tid="'+c.thread_id+'">'+esc(c.title||'未命名')+'</button><button class="btn-conv-delete" data-tid="'+c.thread_id+'" title="删除对话">×</button></div>').join(''):'<span style="color:var(--text-muted);font-size:0.62rem;padding:0.4rem;">暂无对话</span>';
   el.convList.querySelectorAll('.conv-item').forEach(b=>b.addEventListener('click',()=>switchConv(b.dataset.tid)));

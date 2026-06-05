@@ -337,6 +337,13 @@ cite-warn{color:var(--gold);font-size:0.55rem;margin-left:3px;}
 }
 .gap-progress{height:8px;background:rgba(255,255,255,0.06);border-radius:999px;overflow:hidden;margin-bottom:0.9rem;}
 .gap-progress span{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--green));border-radius:999px;}
+.gap-confidence{
+  padding:0.4rem 0.85rem;margin-bottom:0.6rem;border-radius:var(--radius-sm);
+  font-size:0.72rem;line-height:1.5;
+}
+.gap-confidence.high{color:var(--green);background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.15);}
+.gap-confidence.medium{color:var(--text-dim);background:rgba(255,255,255,0.03);border:1px solid var(--border);}
+.gap-confidence.low{color:var(--gold);background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.15);}
 .gap-summary{
   padding:0.75rem 0.85rem;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.16);
   border-radius:var(--radius-sm);font-size:0.8rem;line-height:1.65;color:var(--text);
