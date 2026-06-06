@@ -103,6 +103,22 @@
         <div class="gap-feedback-actions">
           <button class="gap-mini-btn" id="btnGapClearFeedback" title="清空当前岗位反馈">清空反馈</button>
         </div>
+        <div class="gap-profile-box">
+          <div class="gap-section-head compact">
+            <div>
+              <div class="gap-label">简历技能画像</div>
+              <div class="gap-subtle">粘贴简历或上传文本版 PDF/DOCX/TXT</div>
+            </div>
+          </div>
+          <textarea id="resumeTextInput" rows="4" placeholder="粘贴简历、项目经历，或描述你做过的项目"></textarea>
+          <div class="gap-profile-actions">
+            <input type="file" id="resumeFileInput" accept=".pdf,.docx,.txt,.md" />
+            <button class="gap-mini-btn" id="btnResumeProfile">识别画像</button>
+          </div>
+          <div id="profileSkillList" class="profile-skill-list">
+            <div class="gap-subtle">画像技能会自动参与差距分析</div>
+          </div>
+        </div>
         <div class="gap-extra">
           <div class="gap-label">补充技能</div>
           <textarea id="gapExtraInput" rows="3" placeholder="Python, MySQL, Git"></textarea>

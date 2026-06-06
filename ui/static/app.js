@@ -48,8 +48,10 @@ const api={
   async deleteConversation(tid){const r=await fetch('/conversation/'+encodeURIComponent(tid)+'?user_id='+userId,{method:'DELETE'});return r.json();},
   async conversations(uid){const r=await fetch('/conversations?user_id='+uid);const d=await r.json();return d.conversations||[];},
   async analyzedJobs(){const r=await fetch('/skill_rank/_jobs');const d=await r.json();return d.jobs||[];},
-  async skillRank(job,n=15){const r=await fetch('/skill_rank/'+encodeURIComponent(job)+'?top_n='+n);return r.json();},
-  async skillGap(job,userSkills,n=15){const r=await fetch('/skill_gap',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_name:job,user_skills:userSkills,top_n:n})});return r.json();},
+  async skillRank(job,n=15){const r=await fetch('/skill_rank/'+encodeURIComponent(job)+'?top_n='+n+'&user_id='+userId);return r.json();},
+  async skillGap(job,userSkills,n=15,userProfile=[]){const r=await fetch('/skill_gap',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_name:job,user_skills:userSkills,user_profile:userProfile,top_n:n})});return r.json();},
+  async resumeProfileText(text){const r=await fetch('/profile/resume_text',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({resume_text:text})});return r.json();},
+  async resumeProfileFile(file,text=''){const fd=new FormData();if(file)fd.append('file',file);if(text)fd.append('resume_text',text);const r=await fetch('/profile/resume',{method:'POST',body:fd});return r.json();},
   async convMsgs(tid){const r=await fetch('/conversation/'+encodeURIComponent(tid));const d=await r.json();return d.messages||[];},
   async stats(){const r=await fetch('/stats');return r.json();},
   async analyzeJob(job){const r=await fetch('/analyze_job',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_name:job})});return r.json();},
@@ -81,7 +83,8 @@ const el={
   radarInput:$('radarInput'),btnRadarSearch:$('btnRadarSearch'),radarQuickTags:$('radarQuickTags'),radarBody:$('radarBody'),
   gapJobInput:$('gapJobInput'),btnGapLoad:$('btnGapLoad'),gapQuickTags:$('gapQuickTags'),gapSkillList:$('gapSkillList'),
   gapMarketMeta:$('gapMarketMeta'),gapExtraInput:$('gapExtraInput'),btnGapAnalyze:$('btnGapAnalyze'),btnGapClear:$('btnGapClear'),gapResult:$('gapResult'),
-  btnGapClearFeedback:$('btnGapClearFeedback'),
+  btnGapClearFeedback:$('btnGapClearFeedback'),resumeTextInput:$('resumeTextInput'),resumeFileInput:$('resumeFileInput'),
+  btnResumeProfile:$('btnResumeProfile'),profileSkillList:$('profileSkillList'),
   researchInput:$('researchInput'),btnResearch:$('btnResearch'),researchTimeline:$('researchTimeline'),researchBody:$('researchBody'),
   userAvatar:$('userAvatar'),userName:$('userName'),userMeta:$('userMeta'),userStats:$('userStats'),
   insightContent:$('insightContent'),toastContainer:$('toastContainer'),
@@ -292,13 +295,51 @@ $('radarTagsToggle').addEventListener('click',()=>{
 // ═══════════════════════════════════════════════
 // 视图3: 技能差距
 // ═══════════════════════════════════════════════
-let gapMarketSkills=[],gapTotalJds=0,gapCurrentJob='';
+let gapMarketSkills=[],gapTotalJds=0,gapCurrentJob='',userProfileSkills=[];
 
 function normalizeSkillText(text){
   return String(text||'')
     .split(/[,\n，、;；]+/)
     .map(s=>s.trim())
     .filter(Boolean);
+}
+function profileSkillNames(){
+  return userProfileSkills.map(s=>s.skill).filter(Boolean);
+}
+function renderProfileSkills(profile){
+  if(!el.profileSkillList)return;
+  userProfileSkills=(profile?.skills||[]).filter(s=>s&&s.skill);
+  if(!userProfileSkills.length){
+    el.profileSkillList.innerHTML='<div class="gap-subtle">暂未识别到明确技能，可以补充经历或手动填写技能</div>';
+    return;
+  }
+  el.profileSkillList.innerHTML='<div class="profile-summary">'+esc(profile.summary||('已识别 '+userProfileSkills.length+' 个技能'))+'</div>'
+    +userProfileSkills.map((s,i)=>'<div class="profile-skill-item">'
+      +'<div><span class="profile-skill-name">'+esc(s.skill)+'</span><span class="profile-skill-level">'+esc(s.level||'使用过')+'</span></div>'
+      +'<button class="profile-remove" data-idx="'+i+'" title="移除">×</button>'
+      +'<div class="profile-evidence">'+esc(s.evidence||'来自简历/经历文本')+'</div>'
+      +'</div>').join('');
+  el.profileSkillList.querySelectorAll('.profile-remove').forEach(btn=>btn.addEventListener('click',()=>{
+    userProfileSkills.splice(Number(btn.dataset.idx),1);
+    renderProfileSkills({skills:userProfileSkills,summary:'已更新技能画像'});
+  }));
+}
+async function extractResumeProfile(){
+  const text=el.resumeTextInput.value.trim();
+  const file=el.resumeFileInput.files?.[0];
+  if(!text&&!file){toast('请先粘贴简历或选择文件');return;}
+  el.btnResumeProfile.disabled=true;
+  el.profileSkillList.innerHTML='<div class="msg-loading"></div>';
+  try{
+    const res=file?await api.resumeProfileFile(file,text):await api.resumeProfileText(text);
+    if(res.code!==200)throw new Error(res.detail||'简历解析失败');
+    renderProfileSkills(res.profile);
+    toast('技能画像已生成');
+  }catch(e){
+    el.profileSkillList.innerHTML='<div class="gap-subtle">解析失败：'+esc(e.message)+'</div>';
+  }finally{
+    el.btnResumeProfile.disabled=false;
+  }
 }
 function skillTitle(item){return typeof item==='string'?item:(item?.skill||'');}
 function marketRate(item,total=gapTotalJds){
@@ -425,7 +466,7 @@ async function runGapAnalysis(){
   el.btnGapAnalyze.disabled=true;
   el.gapResult.innerHTML='<div class="msg-loading"></div>';
   try{
-    const result=await api.skillGap(job,userSkills,15);
+    const result=await api.skillGap(job,userSkills,15,userProfileSkills);
     if(result.code&&result.code!==200)throw new Error(result.detail||'分析失败');
     renderGapResult(result);
   }catch(e){
@@ -551,6 +592,7 @@ el.btnGapClear.addEventListener('click',()=>{
   el.gapSkillList.querySelectorAll('.gap-skill-check').forEach(c=>{c.checked=false;});
   el.gapExtraInput.value='';
 });
+el.btnResumeProfile.addEventListener('click',extractResumeProfile);
 $('gapTagsToggle').addEventListener('click',()=>{
   const tags=$('gapQuickTags');
   const toggle=$('gapTagsToggle');

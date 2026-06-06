@@ -3,7 +3,7 @@ import time
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -122,6 +122,7 @@ def cancel_task(task_id: str):
 class SkillGapRequest(BaseModel):
     job_name: str
     user_skills: list[str] = Field(default_factory=list)
+    user_profile: list[dict] = Field(default_factory=list)
     top_n: int = Field(default=15, ge=1, le=50)
 
 
@@ -130,12 +131,45 @@ def skill_gap(request: SkillGapRequest):
     if not request.job_name or not request.job_name.strip():
         raise HTTPException(status_code=400, detail="job_name 不能为空")
     from services.skill_gap import analyze_skill_gap
+    from services.resume_profile import profile_to_skill_names
+    profile_skills = profile_to_skill_names(request.user_profile)
+    user_skills = list(dict.fromkeys([*profile_skills, *request.user_skills]))
     result = analyze_skill_gap(
         job_name=request.job_name,
-        user_skills=request.user_skills,
+        user_skills=user_skills,
         top_n=request.top_n,
     )
+    result["profile_skills"] = profile_skills
     return {"code": 200, **result}
+
+
+# ── 简历画像分析 ──
+class ResumeTextRequest(BaseModel):
+    resume_text: str = Field(default="")
+
+
+@app.post("/profile/resume_text")
+def profile_resume_text(request: ResumeTextRequest):
+    from services.resume_profile import extract_profile_from_text
+    profile = extract_profile_from_text(request.resume_text)
+    return {"code": 200, "profile": profile}
+
+
+@app.post("/profile/resume")
+async def profile_resume(
+    resume_text: str = Form(default=""),
+    file: UploadFile | None = File(default=None),
+):
+    from services.resume_profile import extract_profile_from_text, extract_text_from_file
+    text = resume_text or ""
+    filename = ""
+    if file is not None:
+        filename = file.filename or ""
+        text = extract_text_from_file(file.file, filename=filename)
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="未能从简历中提取文本，请粘贴文本版简历或上传可复制文本的 PDF/DOCX/TXT。")
+    profile = extract_profile_from_text(text)
+    return {"code": 200, "filename": filename, "text_length": len(text), "profile": profile}
 
 
 # ── 深度研究（直接走 research_graph，不经过 ChatAgent） ──
