@@ -172,6 +172,51 @@ async def profile_resume(
     return {"code": 200, "filename": filename, "text_length": len(text), "profile": profile}
 
 
+# ── v0.7 岗位画像 / 候选人画像 / 初筛模拟 ──
+class CandidateProfileRequest(BaseModel):
+    resume_text: str = Field(default="")
+    user_profile: list[dict] = Field(default_factory=list)
+
+
+class ScreeningReportRequest(BaseModel):
+    job_name: str
+    resume_text: str = Field(default="")
+    user_profile: list[dict] = Field(default_factory=list)
+    top_n: int = Field(default=20, ge=1, le=50)
+
+
+@app.get("/job_profile/{job_name}")
+def job_profile(job_name: str, top_n: int = Query(20, ge=1, le=50)):
+    if not job_name or not job_name.strip():
+        raise HTTPException(status_code=400, detail="job_name 不能为空")
+    from services.screening import build_job_profile
+    return {"code": 200, "profile": build_job_profile(job_name, top_n=top_n)}
+
+
+@app.post("/candidate_profile")
+def candidate_profile(request: CandidateProfileRequest):
+    from services.screening import extract_candidate_profile
+    profile = extract_candidate_profile(
+        resume_text=request.resume_text,
+        user_profile=request.user_profile,
+    )
+    return {"code": 200, "profile": profile}
+
+
+@app.post("/screening_report")
+def screening_report(request: ScreeningReportRequest):
+    if not request.job_name or not request.job_name.strip():
+        raise HTTPException(status_code=400, detail="job_name 不能为空")
+    from services.screening import build_screening_report
+    report = build_screening_report(
+        job_name=request.job_name,
+        resume_text=request.resume_text,
+        user_profile=request.user_profile,
+        top_n=request.top_n,
+    )
+    return {"code": 200, "report": report}
+
+
 # ── 深度研究（直接走 research_graph，不经过 ChatAgent） ──
 class ResearchRequest(BaseModel):
     topic: str
@@ -213,9 +258,17 @@ def get_conversation_messages(thread_id: str):
         )
         if state and state.values:
             msgs = state.values.get("messages", [])
-            return {"code": 200, "messages": msgs}
-    except Exception:
-        pass
+            if msgs:
+                return {"code": 200, "messages": msgs}
+    except Exception as e:
+        logger.warning(f"graph state 恢复会话失败: {thread_id[:8]}... {e}")
+    try:
+        from memory.short_term import load_messages_from_writes
+        msgs = load_messages_from_writes(thread_id)
+        if msgs:
+            return {"code": 200, "messages": msgs, "source": "writes"}
+    except Exception as e:
+        logger.warning(f"writes fallback 恢复会话失败: {thread_id[:8]}... {e}")
     return {"code": 200, "messages": []}
 
 

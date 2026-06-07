@@ -49,7 +49,9 @@ const api={
   async conversations(uid){const r=await fetch('/conversations?user_id='+uid);const d=await r.json();return d.conversations||[];},
   async analyzedJobs(){const r=await fetch('/skill_rank/_jobs');const d=await r.json();return d.jobs||[];},
   async skillRank(job,n=15){const r=await fetch('/skill_rank/'+encodeURIComponent(job)+'?top_n='+n+'&user_id='+userId);return r.json();},
+  async jobProfile(job,n=20){const r=await fetch('/job_profile/'+encodeURIComponent(job)+'?top_n='+n);return r.json();},
   async skillGap(job,userSkills,n=15,userProfile=[]){const r=await fetch('/skill_gap',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_name:job,user_skills:userSkills,user_profile:userProfile,top_n:n})});return r.json();},
+  async screeningReport(job,resumeText='',userProfile=[],n=20){const r=await fetch('/screening_report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_name:job,resume_text:resumeText,user_profile:userProfile,top_n:n})});return r.json();},
   async resumeProfileText(text){const r=await fetch('/profile/resume_text',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({resume_text:text})});return r.json();},
   async resumeProfileFile(file,text=''){const fd=new FormData();if(file)fd.append('file',file);if(text)fd.append('resume_text',text);const r=await fetch('/profile/resume',{method:'POST',body:fd});return r.json();},
   async convMsgs(tid){const r=await fetch('/conversation/'+encodeURIComponent(tid));const d=await r.json();return d.messages||[];},
@@ -295,7 +297,7 @@ $('radarTagsToggle').addEventListener('click',()=>{
 // ═══════════════════════════════════════════════
 // 视图3: 技能差距
 // ═══════════════════════════════════════════════
-let gapMarketSkills=[],gapTotalJds=0,gapCurrentJob='',userProfileSkills=[];
+let gapMarketSkills=[],gapTotalJds=0,gapCurrentJob='',gapJobProfile=null,userProfileSkills=[];
 
 function normalizeSkillText(text){
   return String(text||'')
@@ -313,16 +315,23 @@ function renderProfileSkills(profile){
     el.profileSkillList.innerHTML='<div class="gap-subtle">暂未识别到明确技能，可以补充经历或手动填写技能</div>';
     return;
   }
-  el.profileSkillList.innerHTML='<div class="profile-summary">'+esc(profile.summary||('已识别 '+userProfileSkills.length+' 个技能'))+'</div>'
-    +userProfileSkills.map((s,i)=>'<div class="profile-skill-item">'
-      +'<div><span class="profile-skill-name">'+esc(s.skill)+'</span><span class="profile-skill-level">'+esc(s.level||'使用过')+'</span></div>'
-      +'<button class="profile-remove" data-idx="'+i+'" title="移除">×</button>'
-      +'<div class="profile-evidence">'+esc(s.evidence||'来自简历/经历文本')+'</div>'
-      +'</div>').join('');
+  el.profileSkillList.innerHTML=renderCandidatePreviewCard(profile);
   el.profileSkillList.querySelectorAll('.profile-remove').forEach(btn=>btn.addEventListener('click',()=>{
     userProfileSkills.splice(Number(btn.dataset.idx),1);
     renderProfileSkills({skills:userProfileSkills,summary:'已更新技能画像'});
   }));
+}
+function renderCandidatePreviewCard(profile){
+  const skills=(profile?.skills||[]).filter(s=>s&&s.skill);
+  const core=skills.filter(s=>/项目核心|熟练/.test(s.level||'')).length;
+  const evidences=skills.map(s=>s.evidence).filter(Boolean).slice(0,2);
+  return '<div class="profile-preview-card candidate">'
+    +'<div class="profile-preview-head"><div><b>候选人画像预览</b><span>'+esc(profile.summary||('已识别 '+skills.length+' 个技能线索'))+'</span></div><em>'+skills.length+' 技能</em></div>'
+    +'<div class="profile-preview-kpis"><span>核心/熟练 '+core+'</span><span>证据 '+evidences.length+'</span><span>'+esc(profile.parser==='llm'?'LLM':'规则')+'</span></div>'
+    +'<div class="screening-chip-row matched">'+chipRow(skills.slice(0,10).map(s=>s.skill),'暂未识别')+'</div>'
+    +(evidences.length?'<ul class="profile-preview-evidence">'+evidences.map(e=>'<li>'+esc(e)+'</li>').join('')+'</ul>':'')
+    +'<div class="profile-preview-edit">'+skills.slice(0,10).map((s,i)=>'<button class="profile-remove" data-idx="'+i+'" title="移除">'+esc(s.skill)+' ×</button>').join('')+'</div>'
+    +'</div>';
 }
 async function extractResumeProfile(){
   const text=el.resumeTextInput.value.trim();
@@ -363,17 +372,55 @@ async function loadGapMarketSkills(){
   gapCurrentJob=job;
   el.btnGapLoad.disabled=true;
   el.gapSkillList.innerHTML='<div class="msg-loading"></div>';
-  el.gapResult.innerHTML='<div class="gap-result-empty">差距结果将在这里显示</div>';
+  el.gapResult.innerHTML='<div class="msg-loading"></div>';
   try{
-    const res=await api.skillRank(job,15);
+    const [res,profileRes]=await Promise.all([api.skillRank(job,15),api.jobProfile(job,20).catch(()=>null)]);
     gapMarketSkills=res.data||[];
     gapTotalJds=Number(res.total_jds)||Number(gapMarketSkills[0]?.total_jds)||0;
-    renderGapSkillList(res.last_update||'',res.confidence||'high',res.filtered_count||0);
+    gapJobProfile=profileRes?.code===200?profileRes.profile:null;
+    if(gapJobProfile)renderMarketProfilePreview(gapJobProfile,res.last_update||'',res.confidence||'high',res.filtered_count||0);
+    else renderGapSkillList(res.last_update||'',res.confidence||'high',res.filtered_count||0);
+    if(profileRes?.code===200)renderJobProfilePreview(profileRes.profile);
+    else el.gapResult.innerHTML='<div class="gap-result-empty">岗位技能已加载，粘贴简历后点击分析差距</div>';
   }catch(e){
     el.gapSkillList.innerHTML='<div class="radar-empty">请求出错: '+esc(e.message)+'</div>';
+    el.gapResult.innerHTML='<div class="gap-result-empty">岗位画像加载失败</div>';
   }finally{
     el.btnGapLoad.disabled=false;
   }
+}
+function renderJobProfilePreview(job){
+  el.gapResult.innerHTML='<div class="screening-report profile-only">'
+    +'<div class="profile-card-grid single">'
+    +'<article class="profile-card job-profile-card">'
+    +'<div class="profile-card-head"><div><div class="profile-card-title">岗位画像</div><div class="profile-card-sub">'+esc(job.job_name||'目标岗位')+'</div></div><span>'+esc(job.job_type||'未知')+'</span></div>'
+    +'<div class="profile-kv"><span>面向人群</span><b>'+esc(job.target_audience||'未明确')+'</b></div>'
+    +'<div class="profile-kv"><span>样本来源</span><b>'+esc(String(job.sample?.jd_count||0))+' 条 JD</b></div>'
+    +'<p>必备技能</p><div class="screening-chip-row must">'+chipRow(job.must_have||[],'暂无')+'</div>'
+    +'<p>学历 / 专业 / 经验</p><ul>'+profileEvidenceList([...(job.education_requirements||[]),...(job.major_requirements||[]),...(job.experience_requirements||[])],'未明确硬性要求')+'</ul>'
+    +'</article>'
+    +'</div>'
+    +'<div class="gap-subtle">识别简历后点击“分析差距”，这里会展示岗位画像与候选人画像对比。</div>'
+    +'</div>';
+}
+function renderMarketProfilePreview(job,lastUpdate='',confidence='high',filteredCount=0){
+  const meta=[];
+  const sample=job.sample||{};
+  if(sample.jd_count)meta.push(sample.jd_count+' 条 JD');
+  if(sample.skill_sample_jds)meta.push('技能样本 '+sample.skill_sample_jds);
+  if(lastUpdate||sample.last_update)meta.push('更新 '+(lastUpdate||sample.last_update));
+  if(confidence==='low')meta.push('<span style="color:var(--gold)">⚠ 样本较少</span>');
+  if(filteredCount>0)meta.push('已过滤 '+filteredCount+' 个泛词');
+  el.gapMarketMeta.innerHTML=meta.join(' · ')||'岗位画像已生成';
+  el.gapSkillList.innerHTML='<div class="profile-preview-card job">'
+    +'<div class="profile-preview-head"><div><b>岗位画像预览</b><span>'+esc(job.summary||'基于已分析 JD 汇总岗位要求')+'</span></div><em>'+esc(job.job_type||'未知')+'</em></div>'
+    +'<div class="profile-preview-kpis"><span>'+esc(job.target_audience||'人群未明')+'</span><span>'+esc(String(sample.jd_count||0))+' JD</span><span>'+esc(confidence||'high')+'</span></div>'
+    +'<p>必备技能</p><div class="screening-chip-row must">'+chipRow(job.must_have||[],'暂无')+'</div>'
+    +'<p>加分技能</p><div class="screening-chip-row">'+chipRow((job.nice_to_have||[]).slice(0,8),'暂无')+'</div>'
+    +'<p>学历 / 专业 / 经验</p><ul class="profile-preview-evidence">'+profileEvidenceList([...(job.education_requirements||[]),...(job.major_requirements||[]),...(job.experience_requirements||[])],'未明确硬性要求')+'</ul>'
+    +'<p>业务与软性要求</p><div class="screening-chip-row">'+chipRow([...(job.business_domains||[]),...(job.soft_requirements||[])].slice(0,8),'暂无明显要求')+'</div>'
+    +'</div>';
+  loadFeedbackSummary(gapCurrentJob);
 }
 async function triggerGapAutoAnalyze(job){
   el.gapSkillList.innerHTML='<div class="msg-loading"></div><div style="text-align:center;margin-top:0.5rem;font-size:0.72rem;color:var(--text-dim);">正在分析「'+esc(job)+'」，首次分析可能需要 3-5 分钟...</div>';
@@ -466,9 +513,25 @@ async function runGapAnalysis(){
   el.btnGapAnalyze.disabled=true;
   el.gapResult.innerHTML='<div class="msg-loading"></div>';
   try{
-    const result=await api.skillGap(job,userSkills,15,userProfileSkills);
+    const mergedProfile=[
+      ...userProfileSkills,
+      ...userSkills.map(skill=>({skill,source:'manual',confidence:0.65}))
+    ];
+    const [result,screening]=await Promise.all([
+      api.skillGap(job,userSkills,15,userProfileSkills),
+      api.screeningReport(job,el.resumeTextInput.value.trim(),mergedProfile,20)
+    ]);
     if(result.code&&result.code!==200)throw new Error(result.detail||'分析失败');
-    renderGapResult(result);
+    try{
+      if(screening.code===200)renderScreeningReport(screening.report,result);
+      else {
+        renderGapResult(result);
+        renderScreeningError(screening.detail||'初筛模拟失败');
+      }
+    }catch(se){
+      renderGapResult(result);
+      renderScreeningError(se.message);
+    }
   }catch(e){
     el.gapResult.innerHTML='<div class="radar-empty">请求出错: '+esc(e.message)+'</div>';
   }finally{
@@ -509,6 +572,98 @@ function renderGapResult(result){
     +'<div class="gap-priority"><div class="gap-block-title">学习优先级</div><div class="gap-priority-tags">'
     +(priority.length?priority.map((p,i)=>'<span>'+(i+1)+'. '+esc(p)+'</span>').join(''):'<span>暂无</span>')
     +'</div></div>';
+}
+function renderGapResultCompact(result){
+  const ratio=Number(result.coverage_ratio)||0;
+  const pct=Math.round(ratio*100);
+  const matched=result.matched_skills||[];
+  const missing=result.missing_skills||[];
+  const priority=result.priority_order||[];
+  const names=items=>items.length?items.slice(0,6).map(item=>'<span>'+esc(skillTitle(item))+'</span>').join(''):'<span>暂无</span>';
+  return '<div class="screening-card screening-skill-brief">'
+    +'<div class="gap-block-title">技能匹配明细</div>'
+    +'<div class="screening-brief-score"><b>'+pct+'%</b><span>'+esc(result.summary||'')+'</span></div>'
+    +'<p>已命中</p><div class="screening-chip-row matched">'+names(matched)+'</div>'
+    +'<p>待补齐</p><div class="screening-chip-row missing">'+names(missing)+'</div>'
+    +(priority.length?'<p>优先补强</p><div class="screening-chip-row priority">'+priority.slice(0,5).map(p=>'<span>'+esc(p)+'</span>').join('')+'</div>':'')
+    +'</div>';
+}
+function riskLabel(risk){return risk==='low'?'较低':risk==='medium'?'中等':'较高';}
+function riskClass(risk){return risk==='low'?'low':risk==='medium'?'medium':'high';}
+function appendScreeningLoading(){
+  el.gapResult.insertAdjacentHTML('beforeend','<div id="screeningReport" class="screening-report"><div class="msg-loading"></div></div>');
+}
+function renderScreeningError(msg){
+  let box=$('screeningReport');
+  if(!box){
+    el.gapResult.insertAdjacentHTML('beforeend','<div id="screeningReport" class="screening-report"></div>');
+    box=$('screeningReport');
+  }
+  box.innerHTML='<div class="screening-title">AI 初筛模拟</div><div class="gap-subtle">暂未生成报告：'+esc(msg||'请求失败')+'</div>';
+}
+function renderMiniList(items,empty='暂无'){
+  return items&&items.length?items.map(x=>'<li>'+esc(typeof x==='string'?x:(x.name||x.skill||x.value||x.degree||x.major||''))+'</li>').join(''):'<li class="gap-muted">'+empty+'</li>';
+}
+function chipRow(items,empty='暂无'){
+  if(!items||!items.length)return '<span class="muted">'+esc(empty)+'</span>';
+  return items.map(x=>'<span>'+esc(typeof x==='string'?x:(x.name||x.skill||x.value||x.degree||x.major||''))+'</span>').join('');
+}
+function profileEvidenceList(items,empty='暂无'){
+  if(!items||!items.length)return '<li class="gap-muted">'+esc(empty)+'</li>';
+  return items.slice(0,4).map(x=>{
+    const text=typeof x==='string'?x:(x.evidence||x.value||x.degree||x.major||x.name||'');
+    return '<li>'+esc(text)+'</li>';
+  }).join('');
+}
+function renderScreeningReport(report,gapResult=null){
+  const job=report.job_profile||{};
+  const cand=report.candidate_profile||{};
+  const dims=report.dimension_scores||{};
+  const missing=report.missing_requirements?.skills||[];
+  const matched=report.matched_requirements?.skills||[];
+  const issues=report.blocking_issues||[];
+  const suggestions=report.improvement_suggestions||[];
+  const edu=cand.education||{};
+  const exp=cand.experience||{};
+  const candidateSkills=(cand.skills||[]).map(s=>typeof s==='string'?s:s.skill).filter(Boolean);
+  const educationItems=[edu.degree,edu.major,edu.graduation_year].filter(Boolean);
+  el.gapResult.innerHTML='<div id="screeningReport" class="screening-report">'
+    +'<div class="screening-head">'
+    +'<div><div class="screening-title">AI 初筛模拟</div><div class="gap-subtle">'+esc(job.job_type||'未知')+' · '+esc(job.target_audience||'未明确')+'</div></div>'
+    +'<div class="screening-score"><span>'+Math.round(Number(report.score)||0)+'</span><small>/100</small></div>'
+    +'<span class="screening-risk '+riskClass(report.pass_risk)+'">风险'+riskLabel(report.pass_risk)+'</span>'
+    +'</div>'
+    +'<div class="screening-summary">'+esc(report.summary||'暂无摘要')+'</div>'
+    +'<div class="profile-card-grid">'
+    +'<article class="profile-card job-profile-card">'
+    +'<div class="profile-card-head"><div><div class="profile-card-title">岗位画像</div><div class="profile-card-sub">'+esc(job.job_name||'目标岗位')+'</div></div><span>'+esc(job.job_type||'未知')+'</span></div>'
+    +'<div class="profile-kv"><span>面向人群</span><b>'+esc(job.target_audience||'未明确')+'</b></div>'
+    +'<div class="profile-kv"><span>样本来源</span><b>'+esc(String(job.sample?.jd_count||0))+' 条 JD</b></div>'
+    +'<p>必备技能</p><div class="screening-chip-row must">'+chipRow(job.must_have||[])+'</div>'
+    +'<p>加分技能</p><div class="screening-chip-row">'+chipRow(job.nice_to_have||[],'暂无')+'</div>'
+    +'<p>学历 / 专业 / 经验</p><ul>'+profileEvidenceList([...(job.education_requirements||[]),...(job.major_requirements||[]),...(job.experience_requirements||[])],'未明确硬性要求')+'</ul>'
+    +'<p>业务与软性要求</p><div class="screening-chip-row">'+chipRow([...(job.business_domains||[]),...(job.soft_requirements||[])].slice(0,8),'暂无明显要求')+'</div>'
+    +'</article>'
+    +'<article class="profile-card candidate-profile-card">'
+    +'<div class="profile-card-head"><div><div class="profile-card-title">候选人画像</div><div class="profile-card-sub">'+esc(cand.parser==='llm'?'LLM 解析':'规则解析')+'</div></div><span>'+esc(String(candidateSkills.length))+' 技能</span></div>'
+    +'<div class="profile-kv"><span>教育背景</span><b>'+esc(educationItems.join(' · ')||'未明确')+'</b></div>'
+    +'<div class="profile-kv"><span>经历证据</span><b>'+esc((exp.has_internship?'实习 ':'')+(exp.has_project?'项目':'')||'不足')+'</b></div>'
+    +'<p>已识别技能</p><div class="screening-chip-row matched">'+chipRow(candidateSkills.slice(0,12),'暂未识别')+'</div>'
+    +'<p>项目 / 实习经历</p><ul>'+profileEvidenceList([...(exp.internships||[]),...(exp.work_experience||[]),...(exp.projects||[])],'未识别到明确经历')+'</ul>'
+    +'<p>量化成果</p><ul>'+profileEvidenceList(exp.metrics||[],'未识别到量化成果')+'</ul>'
+    +'</article>'
+    +'</div>'
+    +'<div class="screening-dims">'
+    +Object.entries(dims).map(([k,v])=>'<div><span>'+esc({skills:'技能',education:'学历',major:'专业',experience:'经历',evidence:'证据'}[k]||k)+'</span><b>'+esc(String(v))+'</b></div>').join('')
+    +'</div>'
+    +'<div class="screening-grid">'
+    +'<div class="screening-card matched"><div class="gap-block-title">已命中要求</div><ul>'+renderMiniList(matched)+'</ul></div>'
+    +'<div class="screening-card missing"><div class="gap-block-title">主要缺口</div><ul>'+renderMiniList(missing)+'</ul></div>'
+    +'</div>'
+    +(issues.length?'<div class="screening-card warn"><div class="gap-block-title">可能被筛原因</div><ul>'+renderMiniList(issues)+'</ul></div>':'')
+    +(suggestions.length?'<div class="screening-card"><div class="gap-block-title">简历改写建议</div><ul>'+renderMiniList(suggestions)+'</ul></div>':'')
+    +(gapResult?renderGapResultCompact(gapResult):'')
+    +'</div>';
 }
 
 // ── 技能反馈（后端为主，localStorage 兜底） ──
@@ -602,7 +757,8 @@ $('gapTagsToggle').addEventListener('click',()=>{
 el.btnGapClearFeedback.addEventListener('click',async()=>{
   if(!gapCurrentJob)return;
   clearJobFeedback(gapCurrentJob);
-  renderGapSkillList('',0,0);
+  if(gapJobProfile)renderMarketProfilePreview(gapJobProfile,'','high',0);
+  else renderGapSkillList('',0,0);
   renderFeedbackSummary(gapCurrentJob);
   toast('已清空「'+gapCurrentJob+'」的反馈');
 });
@@ -736,7 +892,7 @@ async function refreshSidebar(){
   // 过滤掉本地已标记删除的会话（防止异步删除未完成时重新出现）
   const filtered=convs.filter(c=>!deletedThreads.has(c.thread_id));
   const checked=await Promise.all(filtered.map(async c=>({...c,messages:await loadConversationMessages(c.thread_id)})));
-  const visible=checked.filter(c=>c.messages.length>0);
+  const visible=checked.filter(c=>!c.recovered||c.messages.length>0);
   el.convList.innerHTML=visible.length?visible.map(c=>'<div class="conv-item-wrap'+(c.thread_id===threadId?' active':'')+'" data-tid="'+c.thread_id+'"><button class="conv-item" data-tid="'+c.thread_id+'">'+esc(c.title||'未命名')+'</button><button class="btn-conv-delete" data-tid="'+c.thread_id+'" title="删除对话">×</button></div>').join(''):'<span style="color:var(--text-muted);font-size:0.62rem;padding:0.4rem;">暂无对话</span>';
   el.convList.querySelectorAll('.conv-item').forEach(b=>b.addEventListener('click',()=>switchConv(b.dataset.tid)));
   el.convList.querySelectorAll('.btn-conv-delete').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();deleteConversation(b.dataset.tid);}));
@@ -749,7 +905,16 @@ el.btnNewChat.addEventListener('click',()=>{threadId=crypto.randomUUID();allMess
 
 // ── 启动 ──
 (async function init(){
-  if(!userId){const r=await fetch('/user');const d=await r.json();userId=d.user_id;localStorage.setItem('js_user_id',String(userId));localStorage.setItem('js_username',d.username);}
+  if(!userId){
+    const users=await api.users().catch(()=>[]);
+    if(users.length){
+      userId=users[0].id;
+      localStorage.setItem('js_user_id',String(userId));
+      localStorage.setItem('js_username',users[0].username);
+    }else{
+      const r=await fetch('/user');const d=await r.json();userId=d.user_id;localStorage.setItem('js_user_id',String(userId));localStorage.setItem('js_username',d.username);
+    }
+  }
   const lastTid=localStorage.getItem(lastThreadKey());
   if(lastTid){threadId=lastTid;}
   const msgs=lastTid?await loadConversationMessages(threadId,{fresh:true}):[];

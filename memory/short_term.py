@@ -72,6 +72,59 @@ def list_checkpoint_threads(limit: int = 100) -> list[dict]:
     ]
 
 
+def load_messages_from_writes(thread_id: str) -> list[dict]:
+    """Fallback reader for older LangGraph checkpoints.
+
+    Some saved conversations have `messages` in the `writes` table, while
+    `graph.get_state()` may return an empty state after graph/schema changes.
+    This reads the latest serialized messages write directly.
+    """
+    if not thread_id or not DB_PATH.exists():
+        return []
+    try:
+        import ormsgpack
+    except Exception as e:
+        logger.warning(f"ormsgpack 不可用，无法从 writes 恢复消息: {e}")
+        return []
+
+    try:
+        with sqlite3.connect(str(DB_PATH)) as conn:
+            row = conn.execute(
+                """
+                SELECT value
+                FROM writes
+                WHERE thread_id = ? AND channel = 'messages' AND type = 'msgpack'
+                ORDER BY checkpoint_id DESC, idx DESC
+                LIMIT 1
+                """,
+                (thread_id,),
+            ).fetchone()
+    except Exception as e:
+        logger.warning(f"从 writes 查询消息失败: {e}")
+        return []
+
+    if not row or not row[0]:
+        return []
+
+    try:
+        raw_messages = ormsgpack.unpackb(row[0])
+    except Exception as e:
+        logger.warning(f"从 writes 反序列化消息失败: {e}")
+        return []
+
+    messages = []
+    for msg in raw_messages or []:
+        if isinstance(msg, dict):
+            role = msg.get("role") or msg.get("type") or ""
+            content = msg.get("content") or ""
+        else:
+            role = getattr(msg, "role", "") or getattr(msg, "type", "")
+            content = getattr(msg, "content", "")
+        if role and content:
+            messages.append({"role": str(role), "content": str(content)})
+    return messages
+
+
 def prune_old_checkpoints(thread_id: str):
     """压缩后清理旧快照，只保留当前状态"""
     checkpointer = create_checkpointer()
