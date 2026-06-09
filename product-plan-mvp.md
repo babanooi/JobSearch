@@ -527,6 +527,26 @@ V1.1 先做“诊断结果 + 学习优先级”，V2 再接学习资源库，避
 - [x] 技能差距页优先展示"岗位画像 / 候选人画像"两张卡片，再展示初筛风险、缺口建议和技能匹配明细
 - [x] 明确不使用年龄作为评分依据，只使用经验阶段、毕业年份和经历证据进行匹配判断
 
+### product-mvp-v0.9 — 岗位画像 + 候选人画像 + 综合适配分析
+
+- [x] 新增 4 张表：`job_profiles`、`candidate_profiles`、`fit_analysis_reports`、`profile_feedback`
+- [x] Pydantic schema 校验：`JobProfileResult`、`CandidateProfileResult`、`FitAnalysisResult`
+- [x] `JobProfileService`：从 JD 提取核心职责/能力/学历/业务场景/成长空间，缺失返回空不编造
+- [x] `CandidateProfileService`：从简历提取教育/技能/项目/实习/成果/学习信号，区分 explicit/inferred
+- [x] `FitAnalysisService`：5 维度规则评估（能力匹配/经历相关/成长潜力/证据充分/风险短板）
+- [x] 7 个新 API：`/job_profiles/analyze`、`/candidate_profiles/analyze`、`/fit_analysis_reports` 等
+- [x] 12 个新测试：画像字段、敏感信息、旧功能兼容
+
+### product-mvp-v0.10 — FitAnalysisAgent（规则信号 + LLM 综合判断）
+
+- [x] 新增 `FitAnalysisAgent`：基于规则信号 + LLM 综合适配分析
+- [x] Agent 输出经 Pydantic schema 校验，非法时自动 fallback 到规则报告
+- [x] LLM prompt 禁止使用敏感信息，要求输出完整 JSON schema
+- [x] API 返回 `analysis_mode`（agent/rule_fallback）和 `rule_score`
+- [x] 9 个新测试：Agent JSON 解析、schema 校验、fallback 逻辑、敏感信息隔离
+- [x] 保留旧 `analyze_fit()` 作为 fallback 和测试稳定性保障
+- [ ] 未做：LoRA 微调、前端完整接入新画像流程、人工评估数据集
+
 ### V2.0 — 功能扩展
 
 - [ ] 用户注册/登录

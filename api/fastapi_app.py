@@ -547,6 +547,7 @@ def create_fit_analysis(request: FitAnalysisRequest):
     from models.profile import JobProfile, CandidateProfile
     from models.database import SessionLocal as _SL
     from services.fit_analysis_service import analyze_fit, save_fit_analysis
+    from services.fit_analysis_agent import analyze_fit_with_agent
     from services.profile_schemas import JobProfileResult, CandidateProfileResult
 
     with _SL() as session:
@@ -588,11 +589,20 @@ def create_fit_analysis(request: FitAnalysisRequest):
             sensitive_detected=json.loads(cp.sensitive_detected) if cp.sensitive_detected else [],
         )
 
-    report = analyze_fit(job_result, cand_result)
+    # 先规则分析，再尝试 Agent
+    rule_report = analyze_fit(job_result, cand_result)
+    report, analysis_mode = analyze_fit_with_agent(job_result, cand_result, rule_report)
+
     report_id = save_fit_analysis(report, user_id=request.user_id,
                                   job_profile_id=request.job_profile_id,
                                   candidate_profile_id=request.candidate_profile_id)
-    return {"code": 200, "fit_analysis_id": report_id, "report": report.model_dump()}
+    return {
+        "code": 200,
+        "fit_analysis_id": report_id,
+        "report": report.model_dump(),
+        "analysis_mode": analysis_mode,
+        "rule_score": rule_report.overall_score,
+    }
 
 
 @app.get("/fit_analysis_reports/{report_id}")
