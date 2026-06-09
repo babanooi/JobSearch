@@ -464,6 +464,27 @@ def get_skill_rank(job_name: str, top_n: int = 10, user_id: int = Query(0)):
     }
 
 
+# ── 简历文件解析 ──
+@app.post("/resume/parse")
+async def parse_resume(file: UploadFile = File(default=None)):
+    if not file:
+        raise HTTPException(status_code=400, detail="未上传文件")
+    content = await file.read()
+    try:
+        from services.resume_parser import parse_resume_file
+        result = parse_resume_file(
+            filename=file.filename or "",
+            content=content,
+            content_type=file.content_type or "",
+        )
+        return {"code": 200, **result}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"简历解析异常: {e}")
+        raise HTTPException(status_code=500, detail="简历解析失败，请手动粘贴简历文本")
+
+
 # ═══ v0.9 画像 + 适配分析 API ═══
 
 # ── 岗位画像 ──

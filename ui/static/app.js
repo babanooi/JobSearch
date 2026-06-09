@@ -48,6 +48,7 @@ let currentAnalysisMode='';
 let currentRuleScore=0;
 let profileAnalysisLoading=false;
 let profileAnalysisError='';
+let parsedResumeText='';  // 上传文件解析出的简历文本
 
 // ── API ──
 const api={
@@ -69,6 +70,8 @@ const api={
   async task(taskId){const r=await fetch('/task/'+taskId);return r.json();},
   async analyzeJobProfile(job,n=20){const r=await fetch('/job_profiles/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_name:job,top_n:n})});return r.json();},
   async analyzeCandidateProfile(resumeText,userId){const r=await fetch('/candidate_profiles/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:userId,resume_text:resumeText})});return r.json();},
+  async parseResume(file){const fd=new FormData();fd.append('file',file);const r=await fetch('/resume/parse',{method:'POST',body:fd});return r.json();},
+  async candidateProfileFromText(text){return this.analyzeCandidateProfile(text,userId);},
   async createFitAnalysis(userId,jobProfileId,candidateProfileId){const r=await fetch('/fit_analysis_reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:userId,job_profile_id:jobProfileId,candidate_profile_id:candidateProfileId})});return r.json();},
 };
 
@@ -352,12 +355,29 @@ async function extractResumeProfile(){
   el.btnResumeProfile.disabled=true;
   el.profileSkillList.innerHTML='<div class="msg-loading"></div>';
   try{
-    const res=file?await api.resumeProfileFile(file,text):await api.resumeProfileText(text);
-    if(res.code!==200)throw new Error(res.detail||'简历解析失败');
-    renderProfileSkills(res.profile);
-    toast('技能画像已生成');
+    if(file){
+      // 先用 /resume/parse 解析文件文本
+      const parseRes=await api.parseResume(file);
+      if(parseRes.code!==200)throw new Error(parseRes.detail||'文件解析失败');
+      parsedResumeText=parseRes.text;
+      el.profileSkillList.innerHTML='<div class="gap-subtle">✓ 文件解析成功（'+parseRes.char_count+'字）'+(parseRes.warnings?.length?' · '+esc(parseRes.warnings.join('; ')):'')+'</div>';
+      // 用解析文本生成候选人画像
+      const res=await api.candidateProfileFromText(parseRes.text);
+      if(res.code===200){
+        currentCandidateProfile=res.profile;
+        renderProfileSkills(res.profile);
+        toast('候选人画像已生成');
+      }
+    }else{
+      parsedResumeText=text;
+      const res=await api.resumeProfileText(text);
+      if(res.code!==200)throw new Error(res.detail||'简历解析失败');
+      renderProfileSkills(res.profile);
+      toast('技能画像已生成');
+    }
   }catch(e){
-    el.profileSkillList.innerHTML='<div class="gap-subtle">解析失败：'+esc(e.message)+'</div>';
+    parsedResumeText='';
+    el.profileSkillList.innerHTML='<div class="gap-subtle">解析失败：'+esc(e.message)+'，请手动粘贴简历文本</div>';
   }finally{
     el.btnResumeProfile.disabled=false;
   }
@@ -523,7 +543,7 @@ function collectGapSkills(){
 async function runGapAnalysis(){
   const job=el.gapJobInput.value.trim();
   if(!job){toast('请输入目标岗位');return;}
-  const resumeText=(el.resumeTextInput?el.resumeTextInput.value:'').trim();
+  const resumeText=parsedResumeText||(el.resumeTextInput?el.resumeTextInput.value:'').trim();
 
   el.btnGapAnalyze.disabled=true;
   profileAnalysisLoading=true;
@@ -898,6 +918,18 @@ el.btnGapClear.addEventListener('click',()=>{
   el.gapExtraInput.value='';
 });
 el.btnResumeProfile.addEventListener('click',extractResumeProfile);
+// 文件选择时显示文件名
+if(el.resumeFileInput){
+  el.resumeFileInput.addEventListener('change',()=>{
+    const f=el.resumeFileInput.files?.[0];
+    const statusEl=$('resumeParseStatus');
+    if(f&&statusEl){
+      statusEl.textContent='已选择: '+f.name+' ('+(f.size/1024).toFixed(0)+'KB)';
+      statusEl.style.color='var(--text-dim)';
+      parsedResumeText=''; // 新文件，清空旧解析文本
+    }
+  });
+}
 $('gapTagsToggle').addEventListener('click',()=>{
   const tags=$('gapQuickTags');
   const toggle=$('gapTagsToggle');

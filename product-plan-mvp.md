@@ -545,7 +545,20 @@ V1.1 先做“诊断结果 + 学习优先级”，V2 再接学习资源库，避
 - [x] API 返回 `analysis_mode`（agent/rule_fallback）和 `rule_score`
 - [x] 9 个新测试：Agent JSON 解析、schema 校验、fallback 逻辑、敏感信息隔离
 - [x] 保留旧 `analyze_fit()` 作为 fallback 和测试稳定性保障
-- [ ] 未做：LoRA 微调、前端完整接入新画像流程、人工评估数据集
+- [ ] 未做：LoRA 微调、人工评估数据集
+
+### product-mvp-v0.12 — 简历文件上传解析
+
+- [x] 新增 `services/resume_parser.py`：支持 PDF / DOCX / TXT 即时解析
+- [x] PDF 使用 pypdf，DOCX 使用 python-docx，TXT 自动探测编码（utf-8/gbk/gb2312/latin-1）
+- [x] 新增 `POST /resume/parse` API：multipart 上传，返回 text/file_type/char_count/warnings
+- [x] 文件大小限制 10MB，空文件/不支持格式明确拒绝
+- [x] 文件不落盘，即时解析即时返回
+- [x] 前端文件上传控件复用已有 `resumeFileInput`，选择后显示文件名和大小
+- [x] 解析成功后文本存入 `parsedResumeText`，`runGapAnalysis` 优先使用
+- [x] 解析失败回退到手动粘贴，提示"请手动粘贴简历文本"
+- [x] 9 个后端测试覆盖：TXT/GBK 解析、空文件/不支持格式/超大拒绝、DOCX/PDF 解析、过短 warning、类型检测
+- [x] 不影响旧 `resumeProfileText` / `resumeProfileFile` 流程
 
 ### V2.0 — 功能扩展
 
