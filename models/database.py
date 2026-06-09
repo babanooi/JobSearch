@@ -52,6 +52,9 @@ class Base(DeclarativeBase):
 
 def init_database():
     """初始化数据库表结构"""
+    # Ensure every ORM model is registered on Base.metadata before create_all().
+    from models import document, job, profile, user  # noqa: F401
+
     Base.metadata.create_all(bind=get_engine())
 
 

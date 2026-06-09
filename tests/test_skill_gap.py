@@ -267,13 +267,16 @@ def test_skill_feedback_no_duplicate():
     c.get('/user?username=test_dup_user')
     r = c.get('/users')
     uid = r.json()['users'][-1]['id']
+    # 使用唯一 skill_name + job_name 避免历史数据残留
+    unique_skill = "UniqueSkill_Dedup_Test_2026"
+    unique_job = "UniqueJob_Dedup_Test_2026"
     # 插入两次
-    c.post('/skill_feedback', json={"user_id": uid, "job_name": "测试岗", "skill_name": "Python", "action": "reject"})
-    c.post('/skill_feedback', json={"user_id": uid, "job_name": "测试岗", "skill_name": "Python", "action": "reject"})
+    c.post('/skill_feedback', json={"user_id": uid, "job_name": unique_job, "skill_name": unique_skill, "action": "reject"})
+    c.post('/skill_feedback', json={"user_id": uid, "job_name": unique_job, "skill_name": unique_skill, "action": "reject"})
     # summary 应该 reject_count=1
-    r = c.get(f'/skill_feedback/summary?job_name=测试岗&user_id={uid}')
+    r = c.get(f'/skill_feedback/summary?job_name={unique_job}&user_id={uid}')
     summary = r.json().get("summary", {})
-    assert summary.get("Python", {}).get("reject_count", 0) == 1
+    assert summary.get(unique_skill, {}).get("reject_count", 0) == 1
 
 
 def test_skill_feedback_summary_returns_counts():

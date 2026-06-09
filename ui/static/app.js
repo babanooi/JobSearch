@@ -58,6 +58,9 @@ const api={
   async stats(){const r=await fetch('/stats');return r.json();},
   async analyzeJob(job){const r=await fetch('/analyze_job',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_name:job})});return r.json();},
   async task(taskId){const r=await fetch('/task/'+taskId);return r.json();},
+  async analyzeJobProfile(job,n=20){const r=await fetch('/job_profiles/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_name:job,top_n:n})});return r.json();},
+  async analyzeCandidateProfile(resumeText,userId){const r=await fetch('/candidate_profiles/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:userId,resume_text:resumeText})});return r.json();},
+  async createFitAnalysis(userId,jobProfileId,candidateProfileId){const r=await fetch('/fit_analysis_reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:userId,job_profile_id:jobProfileId,candidate_profile_id:candidateProfileId})});return r.json();},
 };
 
 function lastThreadKey(uid=userId){return 'last_thread_id_'+uid;}

@@ -464,6 +464,184 @@ def get_skill_rank(job_name: str, top_n: int = 10, user_id: int = Query(0)):
     }
 
 
+# ═══ v0.9 画像 + 适配分析 API ═══
+
+# ── 岗位画像 ──
+class JobProfileRequest(BaseModel):
+    job_name: str
+    top_n: int = Field(default=20, ge=1, le=50)
+
+
+@app.post("/job_profiles/analyze")
+def analyze_job_profile(request: JobProfileRequest):
+    from services.job_profile_service import extract_job_profile, save_job_profile
+    profile = extract_job_profile(request.job_name, top_n=request.top_n)
+    profile_id = save_job_profile(profile)
+    return {"code": 200, "job_profile_id": profile_id, "profile": profile.model_dump()}
+
+
+@app.get("/job_profiles/{profile_id}")
+def get_job_profile(profile_id: int):
+    from models.profile import JobProfile
+    from models.database import SessionLocal as _SL
+    with _SL() as session:
+        obj = session.get(JobProfile, profile_id)
+        if not obj:
+            return {"code": 404, "message": "岗位画像不存在"}
+        return {"code": 200, "profile": {k: getattr(obj, k) for k in [
+            "id", "job_name", "job_type", "employment_type", "target_audience",
+            "responsibilities", "must_have_capabilities", "nice_to_have_capabilities",
+            "experience_requirement", "education_preference", "major_preference",
+            "business_context", "growth_context", "evidence", "confidence",
+            "quality_flags", "sample_count", "created_at",
+        ]}}
+
+
+# ── 候选人画像 ──
+class CandidateProfileRequest(BaseModel):
+    user_id: int
+    resume_text: str = ""
+    resume_filename: str = ""
+    conversation_text: str = ""
+
+
+@app.post("/candidate_profiles/analyze")
+def analyze_candidate_profile(request: CandidateProfileRequest):
+    from services.candidate_profile_service import extract_candidate_profile, save_candidate_profile
+    profile = extract_candidate_profile(
+        resume_text=request.resume_text,
+        user_id=request.user_id,
+        resume_filename=request.resume_filename,
+        conversation_text=request.conversation_text,
+    )
+    profile_id = save_candidate_profile(profile, user_id=request.user_id, resume_filename=request.resume_filename)
+    return {"code": 200, "candidate_profile_id": profile_id, "profile": profile.model_dump()}
+
+
+@app.get("/candidate_profiles/{profile_id}")
+def get_candidate_profile(profile_id: int):
+    from models.profile import CandidateProfile
+    from models.database import SessionLocal as _SL
+    with _SL() as session:
+        obj = session.get(CandidateProfile, profile_id)
+        if not obj:
+            return {"code": 404, "message": "候选人画像不存在"}
+        return {"code": 200, "profile": {k: getattr(obj, k) for k in [
+            "id", "user_id", "education_background", "skill_stack",
+            "projects", "internships", "work_experiences",
+            "business_understanding", "achievements", "learning_signals",
+            "transferable_strengths", "collaboration_signals", "risk_points",
+            "evidence", "confidence", "sensitive_detected", "created_at",
+        ]}}
+
+
+# ── 综合适配分析 ──
+class FitAnalysisRequest(BaseModel):
+    user_id: int
+    job_profile_id: int
+    candidate_profile_id: int
+
+
+@app.post("/fit_analysis_reports")
+def create_fit_analysis(request: FitAnalysisRequest):
+    from models.profile import JobProfile, CandidateProfile
+    from models.database import SessionLocal as _SL
+    from services.fit_analysis_service import analyze_fit, save_fit_analysis
+    from services.profile_schemas import JobProfileResult, CandidateProfileResult
+
+    with _SL() as session:
+        jp = session.get(JobProfile, request.job_profile_id)
+        cp = session.get(CandidateProfile, request.candidate_profile_id)
+        if not jp or not cp:
+            return {"code": 404, "message": "画像不存在"}
+
+        import json
+        job_result = JobProfileResult(
+            job_name=jp.job_name,
+            job_type=jp.job_type,
+            employment_type=jp.employment_type,
+            target_audience=jp.target_audience,
+            responsibilities=json.loads(jp.responsibilities) if jp.responsibilities else [],
+            must_have_capabilities=json.loads(jp.must_have_capabilities) if jp.must_have_capabilities else [],
+            nice_to_have_capabilities=json.loads(jp.nice_to_have_capabilities) if jp.nice_to_have_capabilities else [],
+            experience_requirement=jp.experience_requirement or "",
+            education_preference=jp.education_preference or "",
+            major_preference=jp.major_preference or "",
+            business_context=json.loads(jp.business_context) if jp.business_context else [],
+            growth_context=json.loads(jp.growth_context) if jp.growth_context else [],
+            confidence=jp.confidence or "low",
+            sample_count=jp.sample_count,
+        )
+        cand_result = CandidateProfileResult(
+            education_background=json.loads(cp.education_background) if cp.education_background else {},
+            skill_stack=json.loads(cp.skill_stack) if cp.skill_stack else [],
+            projects=json.loads(cp.projects) if cp.projects else [],
+            internships=json.loads(cp.internships) if cp.internships else [],
+            work_experiences=json.loads(cp.work_experiences) if cp.work_experiences else [],
+            business_understanding=json.loads(cp.business_understanding) if cp.business_understanding else [],
+            achievements=json.loads(cp.achievements) if cp.achievements else [],
+            learning_signals=json.loads(cp.learning_signals) if cp.learning_signals else [],
+            transferable_strengths=json.loads(cp.transferable_strengths) if cp.transferable_strengths else [],
+            collaboration_signals=json.loads(cp.collaboration_signals) if cp.collaboration_signals else [],
+            risk_points=json.loads(cp.risk_points) if cp.risk_points else [],
+            confidence=cp.confidence or "low",
+            sensitive_detected=json.loads(cp.sensitive_detected) if cp.sensitive_detected else [],
+        )
+
+    report = analyze_fit(job_result, cand_result)
+    report_id = save_fit_analysis(report, user_id=request.user_id,
+                                  job_profile_id=request.job_profile_id,
+                                  candidate_profile_id=request.candidate_profile_id)
+    return {"code": 200, "fit_analysis_id": report_id, "report": report.model_dump()}
+
+
+@app.get("/fit_analysis_reports/{report_id}")
+def get_fit_analysis(report_id: int):
+    from models.profile import FitAnalysisReport
+    from models.database import SessionLocal as _SL
+    with _SL() as session:
+        obj = session.get(FitAnalysisReport, report_id)
+        if not obj:
+            return {"code": 404, "message": "适配分析报告不存在"}
+        return {"code": 200, "report": {k: getattr(obj, k) for k in [
+            "id", "user_id", "job_profile_id", "candidate_profile_id",
+            "overall_fit_level", "overall_score", "fit_summary",
+            "capability_fit", "experience_relevance", "growth_potential",
+            "evidence_strength", "risks_and_gaps", "strengths", "gaps",
+            "transferable_strengths", "learning_plan", "interview_strategy",
+            "evidence_refs", "confidence", "created_at",
+        ]}}
+
+
+# ── 通用画像反馈 ──
+class ProfileFeedbackRequest(BaseModel):
+    user_id: int
+    target_type: str = Field(pattern="^(job_profile|candidate_profile|fit_analysis_report)$")
+    target_id: int
+    field_name: str = ""
+    item_name: str = ""
+    action: str = Field(pattern="^(reject|important|correct|wrong|missing|confirm)$")
+    comment: str = ""
+
+
+@app.post("/profile_feedback")
+def post_profile_feedback(request: ProfileFeedbackRequest):
+    from models.profile import ProfileFeedback
+    from models.database import SessionLocal as _SL
+    with _SL() as session:
+        session.add(ProfileFeedback(
+            user_id=request.user_id,
+            target_type=request.target_type,
+            target_id=request.target_id,
+            field_name=request.field_name,
+            item_name=request.item_name,
+            action=request.action,
+            comment=request.comment,
+        ))
+        session.commit()
+    return {"code": 200, "message": "ok"}
+
+
 # ── 统计 ──
 @app.get("/stats")
 def get_stats():
