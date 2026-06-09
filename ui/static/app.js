@@ -394,6 +394,7 @@ function renderJobProfilePreview(job){
     +'<div class="profile-card-grid single">'
     +'<article class="profile-card job-profile-card">'
     +'<div class="profile-card-head"><div><div class="profile-card-title">岗位画像</div><div class="profile-card-sub">'+esc(job.job_name||'目标岗位')+'</div></div><span>'+esc(job.job_type||'未知')+'</span></div>'
+    +'<div class="profile-kv"><span>用工类型</span><b>'+esc(job.employment_type||'未明确')+'</b></div>'
     +'<div class="profile-kv"><span>面向人群</span><b>'+esc(job.target_audience||'未明确')+'</b></div>'
     +'<div class="profile-kv"><span>样本来源</span><b>'+esc(String(job.sample?.jd_count||0))+' 条 JD</b></div>'
     +'<p>必备技能</p><div class="screening-chip-row must">'+chipRow(job.must_have||[],'暂无')+'</div>'
@@ -622,6 +623,7 @@ function renderScreeningReport(report,gapResult=null){
   const missing=report.missing_requirements?.skills||[];
   const matched=report.matched_requirements?.skills||[];
   const issues=report.blocking_issues||[];
+  const concerns=report.concerns||[];
   const suggestions=report.improvement_suggestions||[];
   const edu=cand.education||{};
   const exp=cand.experience||{};
@@ -637,6 +639,7 @@ function renderScreeningReport(report,gapResult=null){
     +'<div class="profile-card-grid">'
     +'<article class="profile-card job-profile-card">'
     +'<div class="profile-card-head"><div><div class="profile-card-title">岗位画像</div><div class="profile-card-sub">'+esc(job.job_name||'目标岗位')+'</div></div><span>'+esc(job.job_type||'未知')+'</span></div>'
+    +'<div class="profile-kv"><span>用工类型</span><b>'+esc(job.employment_type||'未明确')+'</b></div>'
     +'<div class="profile-kv"><span>面向人群</span><b>'+esc(job.target_audience||'未明确')+'</b></div>'
     +'<div class="profile-kv"><span>样本来源</span><b>'+esc(String(job.sample?.jd_count||0))+' 条 JD</b></div>'
     +'<p>必备技能</p><div class="screening-chip-row must">'+chipRow(job.must_have||[])+'</div>'
@@ -647,6 +650,7 @@ function renderScreeningReport(report,gapResult=null){
     +'<article class="profile-card candidate-profile-card">'
     +'<div class="profile-card-head"><div><div class="profile-card-title">候选人画像</div><div class="profile-card-sub">'+esc(cand.parser==='llm'?'LLM 解析':'规则解析')+'</div></div><span>'+esc(String(candidateSkills.length))+' 技能</span></div>'
     +'<div class="profile-kv"><span>教育背景</span><b>'+esc(educationItems.join(' · ')||'未明确')+'</b></div>'
+    +'<div class="profile-kv"><span>工作年限</span><b>'+esc(exp.experience_years!=null?exp.experience_years+'年':'未知')+(exp.experience_years_confidence==='inferred'?' (推算)':'')+'</b></div>'
     +'<div class="profile-kv"><span>经历证据</span><b>'+esc((exp.has_internship?'实习 ':'')+(exp.has_project?'项目':'')||'不足')+'</b></div>'
     +'<p>已识别技能</p><div class="screening-chip-row matched">'+chipRow(candidateSkills.slice(0,12),'暂未识别')+'</div>'
     +'<p>项目 / 实习经历</p><ul>'+profileEvidenceList([...(exp.internships||[]),...(exp.work_experience||[]),...(exp.projects||[])],'未识别到明确经历')+'</ul>'
@@ -657,9 +661,10 @@ function renderScreeningReport(report,gapResult=null){
     +Object.entries(dims).map(([k,v])=>'<div><span>'+esc({skills:'技能',education:'学历',major:'专业',experience:'经历',evidence:'证据'}[k]||k)+'</span><b>'+esc(String(v))+'</b></div>').join('')
     +'</div>'
     +'<div class="screening-grid">'
-    +'<div class="screening-card matched"><div class="gap-block-title">已命中要求</div><ul>'+renderMiniList(matched)+'</ul></div>'
-    +'<div class="screening-card missing"><div class="gap-block-title">主要缺口</div><ul>'+renderMiniList(missing)+'</ul></div>'
+    +'<div class="screening-card matched"><div class="gap-block-title">已命中要求</div><ul>'+renderMiniList(matched.map(s=>typeof s==='string'?s:s.name||s.skill))+'</ul></div>'
+    +'<div class="screening-card missing"><div class="gap-block-title">主要缺口</div><ul>'+renderMiniList(missing.map(s=>typeof s==='string'?s:s.name||s.skill))+'</ul></div>'
     +'</div>'
+    +(concerns.length?'<div class="screening-card concern"><div class="gap-block-title">扣分分析</div><ul>'+concerns.map(c=>'<li><span class="concern-dim">'+esc({skills:'技能',education:'学历',major:'专业',experience:'经历',evidence:'证据'}[c.dimension]||c.dimension)+'</span> <span class="concern-score">'+esc(String(c.score))+'/'+esc(String(c.max))+'</span> <span class="concern-reason">'+esc(c.reason)+'</span></li>').join('')+'</ul></div>':'')
     +(issues.length?'<div class="screening-card warn"><div class="gap-block-title">可能被筛原因</div><ul>'+renderMiniList(issues)+'</ul></div>':'')
     +(suggestions.length?'<div class="screening-card"><div class="gap-block-title">简历改写建议</div><ul>'+renderMiniList(suggestions)+'</ul></div>':'')
     +(gapResult?renderGapResultCompact(gapResult):'')

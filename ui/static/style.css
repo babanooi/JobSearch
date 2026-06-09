@@ -519,6 +519,10 @@ cite-warn{color:var(--gold);font-size:0.55rem;margin-left:3px;}
 }
 .screening-card.matched{border-left:3px solid var(--green);}
 .screening-card.missing,.screening-card.warn{border-left:3px solid var(--red);}
+.screening-card.concern{border-left:3px solid var(--gold);}
+.concern-dim{font-weight:600;margin-right:0.3rem;}
+.concern-score{font-family:var(--mono);font-size:0.72rem;color:var(--gold);margin-right:0.4rem;}
+.concern-reason{font-size:0.72rem;color:var(--text-dim);}
 .screening-card p{margin:0.55rem 0 0.35rem;color:var(--text-muted);font-size:0.65rem;}
 .screening-card ul{list-style:none;display:flex;flex-direction:column;gap:0.32rem;}
 .screening-card li{font-size:0.72rem;line-height:1.45;color:var(--text-dim);}
