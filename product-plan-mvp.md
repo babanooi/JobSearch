@@ -562,7 +562,20 @@ V1.1 先做“诊断结果 + 学习优先级”，V2 再接学习资源库，避
 
 ### V2.0 — 功能扩展
 
-- [ ] 用户注册/登录
+### product-mvp-v0.13 — 人工评估集 + 画像质量反馈闭环
+
+- [x] 新增 `profile_evaluations` 数据表：rating(1-5)/is_correct/error_type/comment/useful_for_training
+- [x] 新增 `services/profile_evaluation_service.py`：create_evaluation / list_evaluations / summarize_evaluations
+- [x] POST `/profile_evaluations`：参数校验（rating 1-5、target_type 枚举、error_type 枚举）
+- [x] GET `/profile_evaluations`：按 target_type / target_id / user_id 过滤
+- [x] GET `/profile_evaluations/summary`：total_count / average_rating / correct_rate / error_type_counts
+- [x] 前端画像卡 + 适配报告卡底部加反馈按钮（准确/不准确/缺少信息 + 评分1-5）
+- [x] 9 个测试覆盖：模型创建、API 保存、参数校验、过滤、summary 统计、空数据默认值
+- [x] 当前不做 LoRA，只沉淀高质量评估样本
+- [x] 当前不做 OCR
+- [ ] 未做：评估摘要可视化、管理后台
+
+### V2.0 — 功能扩展
 - [ ] 历史分析记录（数据库存储）
 - [ ] 技能趋势对比
 - [ ] 学习资源推荐

@@ -673,6 +673,68 @@ def post_profile_feedback(request: ProfileFeedbackRequest):
     return {"code": 200, "message": "ok"}
 
 
+# ── 人工评估 ──
+class ProfileEvaluationRequest(BaseModel):
+    user_id: int
+    target_type: str = Field(pattern="^(job_profile|candidate_profile|fit_analysis_report)$")
+    target_id: int
+    rating: int = Field(default=0, ge=0, le=5)
+    is_correct: bool = True
+    error_type: str = Field(default="", pattern="^(|missing_info|wrong_info|hallucination|weak_evidence|bad_suggestion|unfair_judgment|other)$")
+    field_name: str = ""
+    comment: str = ""
+    useful_for_training: bool = False
+
+
+@app.post("/profile_evaluations")
+def post_evaluation(request: ProfileEvaluationRequest):
+    from services.profile_evaluation_service import create_evaluation
+    try:
+        eval_id = create_evaluation(
+            user_id=request.user_id,
+            target_type=request.target_type,
+            target_id=request.target_id,
+            rating=request.rating,
+            is_correct=request.is_correct,
+            error_type=request.error_type,
+            field_name=request.field_name,
+            comment=request.comment,
+            useful_for_training=request.useful_for_training,
+        )
+        return {"code": 200, "evaluation_id": eval_id}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/profile_evaluations")
+def list_evaluations(
+    target_type: str = Query(""),
+    target_id: int = Query(0),
+    user_id: int = Query(0),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    from services.profile_evaluation_service import list_evaluations
+    items = list_evaluations(
+        target_type=target_type,
+        target_id=target_id,
+        user_id=user_id,
+        limit=limit,
+        offset=offset,
+    )
+    return {"code": 200, "items": items}
+
+
+@app.get("/profile_evaluations/summary")
+def get_evaluation_summary(
+    target_type: str = Query(""),
+    user_id: int = Query(0),
+):
+    from services.profile_evaluation_service import summarize_evaluations
+    summary = summarize_evaluations(target_type=target_type, user_id=user_id)
+    return {"code": 200, **summary}
+
+
 # ── 统计 ──
 @app.get("/stats")
 def get_stats():

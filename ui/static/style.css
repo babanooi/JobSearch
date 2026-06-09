@@ -344,6 +344,16 @@ cite-warn{color:var(--gold);font-size:0.55rem;margin-left:3px;}
 .fb-rej{color:var(--red);}
 .fb-imp{color:var(--gold);}
 .gap-feedback-actions{display:flex;gap:0.4rem;padding:0.2rem 0;}
+.eval-feedback-row{display:flex;align-items:center;gap:0.4rem;margin-top:0.6rem;flex-wrap:wrap;}
+.eval-label{font-size:0.65rem;color:var(--text-dim);}
+.eval-btn{
+  padding:0.25rem 0.6rem;font-size:0.65rem;border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:transparent;color:var(--text-dim);cursor:pointer;transition:var(--transition);
+}
+.eval-btn:hover{border-color:var(--border-active);color:var(--text);}
+.eval-btn.eval-submitted{border-color:var(--green);color:var(--green);opacity:0.6;pointer-events:none;}
+.eval-btn.eval-star{min-width:28px;text-align:center;}
+.eval-btn.eval-star:hover{border-color:var(--gold);color:var(--gold);}
 .gap-profile-box{
   margin-top:0.9rem;padding:0.8rem;border:1px solid var(--border);
   border-radius:var(--radius-sm);background:rgba(8,9,13,0.35);

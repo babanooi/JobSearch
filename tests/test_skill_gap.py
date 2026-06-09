@@ -262,6 +262,8 @@ def test_skill_feedback_no_duplicate():
     """重复反馈不会无限重复"""
     from api.fastapi_app import app
     from fastapi.testclient import TestClient
+    from models.database import SessionLocal
+    from sqlalchemy import text
     c = TestClient(app)
     # 确保 user 存在（FK 约束）
     c.get('/user?username=test_dup_user')
@@ -270,6 +272,11 @@ def test_skill_feedback_no_duplicate():
     # 使用唯一 skill_name + job_name 避免历史数据残留
     unique_skill = "UniqueSkill_Dedup_Test_2026"
     unique_job = "UniqueJob_Dedup_Test_2026"
+    # 清理该测试之前残留的数据
+    with SessionLocal() as session:
+        session.execute(text("DELETE FROM skill_feedback WHERE job_name = :j AND skill_name = :s"),
+                        {"j": unique_job, "s": unique_skill})
+        session.commit()
     # 插入两次
     c.post('/skill_feedback', json={"user_id": uid, "job_name": unique_job, "skill_name": unique_skill, "action": "reject"})
     c.post('/skill_feedback', json={"user_id": uid, "job_name": unique_job, "skill_name": unique_skill, "action": "reject"})

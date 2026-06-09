@@ -101,3 +101,20 @@ class ProfileFeedback(Base):
     action: Mapped[str] = mapped_column(String(20), comment="reject/important/correct/wrong/missing/confirm")
     comment: Mapped[str] = mapped_column(Text, default="", comment="用户备注")
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class ProfileEvaluation(Base):
+    """系统性人工评估——画像/适配报告质量评价"""
+    __tablename__ = "profile_evaluations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    target_type: Mapped[str] = mapped_column(String(50), index=True, comment="job_profile / candidate_profile / fit_analysis_report")
+    target_id: Mapped[int] = mapped_column(Integer, index=True, comment="目标记录 ID")
+    rating: Mapped[int] = mapped_column(Integer, default=0, comment="评分 1-5")
+    is_correct: Mapped[bool] = mapped_column(default=True, comment="是否准确")
+    error_type: Mapped[str] = mapped_column(String(50), default="", comment="missing_info/wrong_info/hallucination/weak_evidence/bad_suggestion/unfair_judgment/other")
+    field_name: Mapped[str] = mapped_column(String(100), default="", comment="问题字段")
+    comment: Mapped[str] = mapped_column(Text, default="", comment="备注")
+    useful_for_training: Mapped[bool] = mapped_column(default=False, comment="可用于训练")
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, server_default=func.now())

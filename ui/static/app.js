@@ -73,6 +73,8 @@ const api={
   async parseResume(file){const fd=new FormData();fd.append('file',file);const r=await fetch('/resume/parse',{method:'POST',body:fd});return r.json();},
   async candidateProfileFromText(text){return this.analyzeCandidateProfile(text,userId);},
   async createFitAnalysis(userId,jobProfileId,candidateProfileId){const r=await fetch('/fit_analysis_reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:userId,job_profile_id:jobProfileId,candidate_profile_id:candidateProfileId})});return r.json();},
+  async submitEvaluation(data){const r=await fetch('/profile_evaluations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});return r.json();},
+  async getEvaluationSummary(targetType){const r=await fetch('/profile_evaluations/summary?target_type='+encodeURIComponent(targetType||''));return r.json();},
 };
 
 function lastThreadKey(uid=userId){return 'last_thread_id_'+uid;}
@@ -613,6 +615,50 @@ async function runGapAnalysis(){
     el.btnGapAnalyze.disabled=false;
   }
 }
+// ── v0.13 评估反馈按钮 ──
+function renderEvalButtons(targetType,targetId){
+  const btns=[
+    {label:'✓ 准确',action:'correct',isCorrect:true},
+    {label:'✕ 不准确',action:'wrong',isCorrect:false,errorType:'wrong_info'},
+    {label:'⚠ 缺少信息',action:'missing',isCorrect:false,errorType:'missing_info'},
+  ];
+  return '<div class="eval-feedback-row">'
+    +btns.map(b=>'<button class="eval-btn" data-type="'+targetType+'" data-id="'+targetId
+      +'" data-correct="'+b.isCorrect+'" data-error="'+(b.errorType||'')+'" data-action="'+b.action+'">'
+      +esc(b.label)+'</button>').join('')
+    +'</div>';
+}
+function renderFitEvalButtons(targetId){
+  return '<div class="eval-feedback-row">'
+    +'<span class="eval-label">评价报告：</span>'
+    +[1,2,3,4,5].map(n=>'<button class="eval-btn eval-star" data-type="fit_analysis_report" data-id="'+targetId+'" data-rating="'+n+'">'+n+'</button>').join('')
+    +'</div>';
+}
+// 事件委托：反馈按钮点击
+document.addEventListener('click',async e=>{
+  const btn=e.target.closest('.eval-btn');
+  if(!btn)return;
+  e.preventDefault();
+  const targetType=btn.dataset.type;
+  const targetId=parseInt(btn.dataset.id);
+  const rating=parseInt(btn.dataset.rating||'0');
+  const isCorrect=btn.dataset.correct==='true';
+  const errorType=btn.dataset.error||'';
+  try{
+    await api.submitEvaluation({
+      user_id:userId,
+      target_type:targetType,
+      target_id:targetId,
+      rating:rating,
+      is_correct:isCorrect,
+      error_type:errorType,
+    });
+    // 视觉反馈
+    btn.classList.add('eval-submitted');
+    btn.textContent='✓ 已反馈';
+    toast('反馈已记录');
+  }catch(_){toast('反馈提交失败');}
+});
 // ── v0.11 画像 + Agent 适配报告渲染 ──
 function renderProfileReport(jobProfile,candidateProfile,fitReport,errorMsg){
   if(errorMsg){
@@ -699,6 +745,12 @@ function renderProfileReport(jobProfile,candidateProfile,fitReport,errorMsg){
   // 可迁移优势
   const transferable=fit.transferable_strengths||[];
   if(transferable.length)h+='<div class="screening-card"><div class="gap-block-title">可迁移优势</div><ul>'+renderMiniList(transferable)+'</ul></div>';
+
+  // 评估反馈按钮（v0.13）
+  const reportId=fitReport?.id||0;
+  if(currentJobProfile?.id)h+=renderEvalButtons('job_profile',currentJobProfile.id);
+  if(currentCandidateProfile?.id)h+=renderEvalButtons('candidate_profile',currentCandidateProfile.id);
+  if(reportId)h+=renderFitEvalButtons(reportId);
 
   h+='</div>';
   el.gapResult.innerHTML=h;
