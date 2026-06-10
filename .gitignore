@@ -6,3 +6,5 @@ data/checkpoints.db-*
 data/chroma_db/
 data/trace.jsonl
 .claude/
+eval/reports/*.json
+eval/reports/*.md

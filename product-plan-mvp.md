@@ -575,6 +575,19 @@ V1.1 先做“诊断结果 + 学习优先级”，V2 再接学习资源库，避
 - [x] 当前不做 OCR
 - [ ] 未做：评估摘要可视化、管理后台
 
+### product-mvp-v0.14 — Golden Set 评测框架
+
+- [x] 新增 `eval/golden_set_v1.json`：5 个标准评测 case（Python后端/AI产品经理/前端/数据分析/嵌入式）
+- [x] 新增 `eval/run_golden_eval.py`：自动评测脚本，支持 `--use-agent` / `--limit` / `--output`
+- [x] 评测指标：job_profile_score / candidate_profile_score / fit_level_match / strengths_hit_rate / gaps_hit_rate / learning_plan_hit_rate / hallucination_flags
+- [x] 关键词命中评估（不做复杂 NLP）
+- [x] 评测报告输出到 `eval/reports/golden_eval_latest.json`（.gitignore 忽略）
+- [x] 新增 `eval/README.md`：Golden Set 说明、如何新增 case、如何运行、如何解读分数
+- [x] 新增 `tests/test_golden_eval.py`：7 个测试覆盖加载/字段/评分/幻觉检测/limit/输出结构
+- [x] 更新 `.gitignore`：忽略 `eval/reports/*.json` 和 `eval/reports/*.md`
+- [x] 当前不做 LoRA，只做质量回归检查
+- [x] 当前不联网
+
 ### V2.0 — 功能扩展
 - [ ] 历史分析记录（数据库存储）
 - [ ] 技能趋势对比

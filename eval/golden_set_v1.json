@@ -1,0 +1,187 @@
+[
+  {
+    "case_id": "case_001",
+    "job_name": "Python后端开发",
+    "jd_texts": [
+      "岗位职责：负责公司内部平台的后端开发与维护。参与系统架构设计与优化。任职要求：本科及以上学历，计算机相关专业。3年以上Python后端开发经验。熟悉Python、FastAPI、MySQL、Redis、Docker。具备良好的沟通协作能力。有微服务架构经验优先。",
+      "职位描述：参与公司核心业务系统的后端开发。任职要求：本科计算机相关专业。熟练掌握Python、Django或FastAPI框架。熟悉MySQL、Redis数据库。了解Docker容器化部署。有RESTful API设计经验。"
+    ],
+    "resume_text": "张三，本科计算机科学与技术专业，2022年毕业。3年Python后端开发经验。技能：Python、FastAPI、MySQL、Redis、Docker、Linux、Git。项目：开发了一个基于FastAPI的求职分析平台，使用MySQL存储数据，Redis缓存热门查询，Docker容器化部署，上线后日活用户500+。实习：在某科技公司担任后端开发实习生，参与内部管理系统的开发。",
+    "gold_job_profile": {
+      "employment_type": "全职",
+      "target_audience": "有经验候选人",
+      "responsibilities_keywords": ["后端开发", "维护", "架构设计", "优化"],
+      "must_have_capabilities": ["Python", "FastAPI", "MySQL", "Redis", "Docker"],
+      "nice_to_have_capabilities": ["微服务"],
+      "experience_requirement": "3年以上",
+      "education_preference": "本科",
+      "major_preference": "计算机",
+      "evidence_keywords": ["后端开发", "Python", "数据库"]
+    },
+    "gold_candidate_profile": {
+      "education_keywords": ["本科", "计算机"],
+      "skill_keywords": ["Python", "FastAPI", "MySQL", "Redis", "Docker", "Linux", "Git"],
+      "project_keywords": ["求职分析平台", "FastAPI", "MySQL", "Redis", "Docker", "500"],
+      "internship_keywords": ["后端开发实习", "管理系统"],
+      "work_experience_keywords": [],
+      "achievement_keywords": ["500", "日活"],
+      "risk_keywords": []
+    },
+    "gold_fit": {
+      "overall_fit_level": "strong",
+      "expected_strengths": ["技能覆盖", "项目经验", "量化成果"],
+      "expected_gaps": [],
+      "expected_learning_keywords": [],
+      "recommendation": "候选人技能栈与岗位高度匹配，项目经验丰富，建议进入面试流程"
+    },
+    "notes": "典型匹配场景，技能覆盖完整，有项目和实习经历"
+  },
+  {
+    "case_id": "case_002",
+    "job_name": "AI产品经理",
+    "jd_texts": [
+      "岗位职责：负责AI产品的需求分析、产品规划和落地推进。与算法、工程团队紧密协作，推动AI能力产品化。任职要求：本科及以上学历。2年以上互联网产品经验，有AI/大模型产品经验优先。熟悉PRD撰写、竞品分析、用户研究。具备数据分析能力，熟悉SQL。有良好的沟通表达能力和跨部门推动能力。",
+      "职位描述：主导AI产品从0到1的规划和落地。要求：本科以上，3年以上产品经验。熟悉AI技术原理，了解大模型、RAG、Agent等概念。擅长需求分析和产品设计。有Axure/Figma原型设计经验。"
+    ],
+    "resume_text": "李四，硕士工商管理专业，2021年毕业。2年产品经理经验。技能：PRD撰写、Axure、Figma、SQL、数据分析。项目：主导了一款基于大模型的智能客服产品从0到1的落地，包括需求分析、竞品调研、产品设计、上线运营，上线后客户满意度提升20%。之前在某互联网公司担任产品经理，负责用户增长方向。",
+    "gold_job_profile": {
+      "employment_type": "全职",
+      "target_audience": "有经验候选人",
+      "responsibilities_keywords": ["需求分析", "产品规划", "落地推进", "AI能力产品化"],
+      "must_have_capabilities": ["PRD", "竞品分析", "用户研究", "数据分析", "SQL"],
+      "nice_to_have_capabilities": ["大模型", "RAG", "Agent", "Axure", "Figma"],
+      "experience_requirement": "2年以上",
+      "education_preference": "本科",
+      "major_preference": "",
+      "evidence_keywords": ["AI产品", "产品规划", "需求分析"]
+    },
+    "gold_candidate_profile": {
+      "education_keywords": ["硕士", "工商管理"],
+      "skill_keywords": ["PRD", "Axure", "Figma", "SQL", "数据分析"],
+      "project_keywords": ["智能客服", "大模型", "需求分析", "竞品调研", "20%"],
+      "internship_keywords": [],
+      "work_experience_keywords": ["产品经理", "用户增长"],
+      "achievement_keywords": ["20%", "满意度"],
+      "risk_keywords": []
+    },
+    "gold_fit": {
+      "overall_fit_level": "moderate",
+      "expected_strengths": ["产品经验", "AI产品经历", "量化成果"],
+      "expected_gaps": ["技术深度", "AI技术理解"],
+      "expected_learning_keywords": ["大模型", "RAG", "Agent", "技术原理"],
+      "recommendation": "候选人有AI产品经验，但技术深度需加强，建议补充AI技术原理学习"
+    },
+    "notes": "产品岗，需关注技术理解深度而非编程能力"
+  },
+  {
+    "case_id": "case_003",
+    "job_name": "前端开发工程师",
+    "jd_texts": [
+      "岗位职责：负责公司Web前端开发。任职要求：本科及以上学历，计算机相关专业。熟练掌握JavaScript、TypeScript、React。熟悉HTML5、CSS3。了解Node.js。有移动端H5开发经验优先。良好的团队协作能力。",
+      "职位要求：本科计算机专业。2年以上前端开发经验。精通React框架。熟悉状态管理、组件化开发。有性能优化经验优先。"
+    ],
+    "resume_text": "王五，大专软件工程专业，2020年毕业。4年前端开发经验。技能：JavaScript、Vue、HTML5、CSS3、Webpack。项目：使用Vue开发了一个电商管理后台，包含商品管理、订单管理、数据看板等功能。负责前端性能优化，首屏加载时间从3秒优化到1.2秒。工作经历：在某公司担任前端开发工程师，负责C端用户页面开发。",
+    "gold_job_profile": {
+      "employment_type": "全职",
+      "target_audience": "有经验候选人",
+      "responsibilities_keywords": ["前端开发", "Web"],
+      "must_have_capabilities": ["JavaScript", "TypeScript", "React", "HTML5", "CSS3"],
+      "nice_to_have_capabilities": ["Node.js", "移动端H5"],
+      "experience_requirement": "2年以上",
+      "education_preference": "本科",
+      "major_preference": "计算机",
+      "evidence_keywords": ["前端", "React", "组件化"]
+    },
+    "gold_candidate_profile": {
+      "education_keywords": ["大专", "软件工程"],
+      "skill_keywords": ["JavaScript", "Vue", "HTML5", "CSS3", "Webpack"],
+      "project_keywords": ["电商管理后台", "Vue", "商品管理", "数据看板", "1.2秒", "3秒"],
+      "internship_keywords": [],
+      "work_experience_keywords": ["前端开发工程师", "C端"],
+      "achievement_keywords": ["1.2秒", "3秒", "性能优化"],
+      "risk_keywords": ["学历", "框架不匹配"]
+    },
+    "gold_fit": {
+      "overall_fit_level": "moderate",
+      "expected_strengths": ["前端经验", "性能优化", "项目经历"],
+      "expected_gaps": ["React", "TypeScript", "学历"],
+      "expected_learning_keywords": ["React", "TypeScript", "组件化"],
+      "recommendation": "候选人有丰富前端经验但框架不匹配，需补充React和TypeScript"
+    },
+    "notes": "框架不匹配场景，Vue vs React，学历也偏低"
+  },
+  {
+    "case_id": "case_004",
+    "job_name": "数据分析师",
+    "jd_texts": [
+      "岗位职责：负责业务数据分析，输出分析报告，支持业务决策。任职要求：本科及以上学历，统计学、数学、计算机相关专业。熟练使用SQL、Python进行数据处理。熟悉数据可视化工具（Tableau/PowerBI）。有机器学习基础优先。良好的逻辑思维和表达能力。",
+      "数据分析师：本科统计相关专业。精通SQL。熟练使用Python（Pandas、NumPy）。有数据建模经验。熟悉A/B测试方法论。"
+    ],
+    "resume_text": "赵六，2023年应届毕业生，本科数学专业。技能：SQL、Python、Pandas、Excel。项目：毕业设计——基于Python的电商用户行为分析，使用Pandas处理10万条用户数据，输出用户画像和购买行为分析报告。无实习经历。",
+    "gold_job_profile": {
+      "employment_type": "全职",
+      "target_audience": "应届生/有经验候选人",
+      "responsibilities_keywords": ["数据分析", "分析报告", "业务决策"],
+      "must_have_capabilities": ["SQL", "Python", "Pandas", "数据可视化"],
+      "nice_to_have_capabilities": ["机器学习", "Tableau", "PowerBI", "A/B测试"],
+      "experience_requirement": "",
+      "education_preference": "本科",
+      "major_preference": "统计学、数学、计算机",
+      "evidence_keywords": ["数据处理", "分析报告", "SQL"]
+    },
+    "gold_candidate_profile": {
+      "education_keywords": ["本科", "数学", "2023"],
+      "skill_keywords": ["SQL", "Python", "Pandas", "Excel"],
+      "project_keywords": ["电商用户行为分析", "Pandas", "10万", "用户画像", "购买行为"],
+      "internship_keywords": [],
+      "work_experience_keywords": [],
+      "achievement_keywords": ["10万"],
+      "risk_keywords": ["无实习", "应届生"]
+    },
+    "gold_fit": {
+      "overall_fit_level": "moderate",
+      "expected_strengths": ["专业匹配", "技能基础", "项目经历"],
+      "expected_gaps": ["实习经历", "数据可视化", "机器学习"],
+      "expected_learning_keywords": ["Tableau", "PowerBI", "机器学习", "A/B测试"],
+      "recommendation": "应届生基础匹配，需补充数据可视化工具和实习经历"
+    },
+    "notes": "应届生场景，技能基本匹配但缺实习和高级工具"
+  },
+  {
+    "case_id": "case_005",
+    "job_name": "嵌入式开发工程师",
+    "jd_texts": [
+      "岗位职责：负责嵌入式系统软件开发与调试。任职要求：本科及以上学历，电子/通信/自动化相关专业。精通C/C++语言。熟悉ARM架构、RTOS操作系统。有硬件接口开发经验（I2C/SPI/UART）。良好的问题定位和调试能力。",
+      "嵌入式软件工程师：本科电子相关专业。3年以上嵌入式开发经验。精通C语言。熟悉Linux驱动开发。有通信协议开发经验优先。"
+    ],
+    "resume_text": "孙七，硕士电子工程专业，2021年毕业。2年嵌入式开发经验。技能：C语言、C++、ARM、FreeRTOS、Linux。项目：开发了一个基于STM32的智能家居控制系统，使用FreeRTOS进行任务调度，通过MQTT协议实现设备通信。在某硬件公司担任嵌入式开发工程师，负责产品固件开发和调试。",
+    "gold_job_profile": {
+      "employment_type": "全职",
+      "target_audience": "有经验候选人",
+      "responsibilities_keywords": ["嵌入式开发", "软件开发", "调试"],
+      "must_have_capabilities": ["C", "C++", "ARM", "RTOS", "I2C", "SPI", "UART"],
+      "nice_to_have_capabilities": ["通信协议", "Linux驱动"],
+      "experience_requirement": "3年以上",
+      "education_preference": "本科",
+      "major_preference": "电子、通信、自动化",
+      "evidence_keywords": ["嵌入式", "C语言", "硬件"]
+    },
+    "gold_candidate_profile": {
+      "education_keywords": ["硕士", "电子工程"],
+      "skill_keywords": ["C", "C++", "ARM", "FreeRTOS", "Linux"],
+      "project_keywords": ["STM32", "智能家居", "FreeRTOS", "MQTT"],
+      "internship_keywords": [],
+      "work_experience_keywords": ["嵌入式开发工程师", "固件开发"],
+      "achievement_keywords": [],
+      "risk_keywords": []
+    },
+    "gold_fit": {
+      "overall_fit_level": "strong",
+      "expected_strengths": ["专业匹配", "技能匹配", "项目经验", "工作经历"],
+      "expected_gaps": ["I2C/SPI/UART"],
+      "expected_learning_keywords": ["硬件接口", "通信协议"],
+      "recommendation": "候选人技能和经历高度匹配，建议进入面试"
+    },
+    "notes": "专业对口场景，技能匹配度高"
+  }
+]
