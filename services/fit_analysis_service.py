@@ -44,23 +44,51 @@ _WEIGHT_PROFILES = {
 }
 
 
+_NON_SKILL_PATTERNS = re.compile(
+    r"(专业|相关|经验|能力|学历|实习|应届|以上|优先|熟悉|掌握|了解|精通|具备|使用|良好的|优秀的)",
+    re.I,
+)
+
+# 技术缩写例外
+_TECH_EXCEPTIONS = {"c", "c++", "c#", "r", "go", "ai", "bi"}
+
+
+def _is_real_skill(s: str) -> bool:
+    """判断是否是真正的技能词，过滤泛词"""
+    s = s.strip().lower()
+    if s in _TECH_EXCEPTIONS:
+        return True
+    if len(s) <= 1:
+        return False
+    if _NON_SKILL_PATTERNS.fullmatch(s):
+        return False
+    if len(s) >= 15:
+        return False
+    return True
+
+
 def _capability_fit(job: JobProfileResult, cand: CandidateProfileResult) -> DimensionResult:
     """能力匹配度"""
-    must = set(s.lower() for s in job.must_have_capabilities)
+    must_raw = set(s.lower() for s in job.must_have_capabilities)
     nice = set(s.lower() for s in job.nice_to_have_capabilities)
     cand_skills = set(s["skill"].lower() for s in cand.skill_stack)
 
-    must_matched = must & cand_skills
-    nice_matched = nice & cand_skills
-    must_missing = must - cand_skills
+    # 过滤泛词后计算真实技能覆盖率
+    must_real = {s for s in must_raw if _is_real_skill(s)}
+    if not must_real:
+        must_real = must_raw  # 兜底：全不过滤
 
-    must_ratio = len(must_matched) / max(1, len(must))
+    must_matched = must_real & cand_skills
+    nice_matched = nice & cand_skills
+    must_missing = must_real - cand_skills
+
+    must_ratio = len(must_matched) / max(1, len(must_real))
     nice_ratio = len(nice_matched) / max(1, len(nice)) if nice else 1.0
     ratio = must_ratio * 0.75 + nice_ratio * 0.25
 
-    if ratio >= 0.7:
+    if ratio >= 0.65:
         level = "strong"
-    elif ratio >= 0.35:
+    elif ratio >= 0.30:
         level = "moderate"
     else:
         level = "weak"
@@ -74,7 +102,7 @@ def _capability_fit(job: JobProfileResult, cand: CandidateProfileResult) -> Dime
     return DimensionResult(
         level=level,
         score=round(ratio * 100, 1),
-        summary=f"必备技能覆盖 {len(must_matched)}/{len(must)}，加分技能覆盖 {len(nice_matched)}/{len(nice)}",
+        summary=f"必备技能覆盖 {len(must_matched)}/{len(must_real)}，加分技能覆盖 {len(nice_matched)}/{len(nice)}",
         evidence_refs=refs,
     )
 
@@ -122,44 +150,80 @@ def _experience_relevance(job: JobProfileResult, cand: CandidateProfileResult) -
 
 
 def _growth_potential(job: JobProfileResult, cand: CandidateProfileResult) -> DimensionResult:
-    """成长潜力"""
-    signals = cand.learning_signals + cand.transferable_strengths
-    score = min(100, len(signals) * 20)
+    """成长潜力 — 学习信号 + 项目自驱 + 迁移能力"""
+    signals = list(cand.learning_signals + cand.transferable_strengths)
 
-    if len(signals) >= 4:
+    # 项目经历本身也是成长信号
+    has_projects = bool(cand.projects)
+    has_internships = bool(cand.internships)
+    has_work = bool(cand.work_experiences)
+
+    # 基础分：有项目就给分，不需要等待 learning_signals
+    base_score = 0
+    if has_projects:
+        base_score += 30
+    if has_internships:
+        base_score += 15
+    if has_work:
+        base_score += 15
+    signal_score = min(100 - base_score, len(signals) * 20)
+    score = min(100, base_score + signal_score)
+
+    total_signals = len(signals)
+    if has_projects:
+        total_signals += 1  # 项目经历本身算一个信号
+
+    if total_signals >= 4 or (has_projects and len(signals) >= 2):
         level = "strong"
-    elif len(signals) >= 2:
+    elif total_signals >= 2 or has_projects:
         level = "moderate"
     else:
         level = "weak"
+
+    refs = []
+    if has_projects:
+        refs.append(f"项目: {cand.projects[0].get('name', '')[:30]}")
+    refs.extend(signals[:3])
 
     return DimensionResult(
         level=level,
         score=score,
-        summary=f"学习信号: {', '.join(signals[:3])}" if signals else "未识别到学习能力信号",
-        evidence_refs=signals[:5],
+        summary=f"学习信号: {', '.join(signals[:3])}" if signals else ("有项目经历" if has_projects else "未识别到学习能力信号"),
+        evidence_refs=refs,
     )
 
 
 def _evidence_strength(cand: CandidateProfileResult) -> DimensionResult:
-    """证据充分度"""
+    """证据充分度 — 量化成果 + 项目/实习/工作经历都是证据"""
     metrics = [a for a in cand.achievements if a.get("has_metric")]
     achievements_count = len(cand.achievements)
     has_metrics = len(metrics) > 0
 
-    if has_metrics and achievements_count >= 3:
+    has_projects = bool(cand.projects)
+    has_internships = bool(cand.internships)
+    has_work = bool(cand.work_experiences)
+
+    # 有项目/实习/工作本身就是证据
+    activity_count = int(has_projects) + int(has_internships) + int(has_work)
+    total_evidence = achievements_count + activity_count
+
+    if total_evidence >= 4 or (has_metrics and activity_count >= 2):
         level = "strong"
-    elif achievements_count >= 1:
+    elif total_evidence >= 2 or has_projects:
         level = "moderate"
     else:
         level = "weak"
 
+    score = min(100, achievements_count * 15 + (20 if has_metrics else 0) + activity_count * 15)
+
     refs = [a.get("description", "")[:60] for a in cand.achievements[:3]]
+    if has_projects:
+        refs.append(f"项目: {cand.projects[0].get('name', '')[:40]}")
 
     return DimensionResult(
         level=level,
-        score=min(100, achievements_count * 20 + (30 if has_metrics else 0)),
-        summary=f"{achievements_count} 个成果证据，{'含' if has_metrics else '无'}量化数据",
+        score=score,
+        summary=f"{achievements_count} 个成果（{'含' if has_metrics else '无'}量化）+ 项目{int(has_projects)} 实习{int(has_internships)} 工作{int(has_work)}",
         evidence_refs=refs,
     )
 
@@ -167,16 +231,17 @@ def _evidence_strength(cand: CandidateProfileResult) -> DimensionResult:
 def _risks_and_gaps(job: JobProfileResult, cand: CandidateProfileResult) -> DimensionResult:
     """风险与短板"""
     risks = list(cand.risk_points)
-    must = set(s.lower() for s in job.must_have_capabilities)
+    must_real = {s.lower() for s in job.must_have_capabilities if _is_real_skill(s)}
     cand_skills = set(s["skill"].lower() for s in cand.skill_stack)
-    missing = must - cand_skills
+    missing = must_real - cand_skills
     if missing:
-        risks.append(f"必备技能缺口: {', '.join(list(missing)[:5])}")
+        risks.append(f"技能缺口: {', '.join(list(missing)[:5])}")
 
     # 区分 critical_gap / normal_gap
-    critical = [r for r in risks if any(k in r for k in ("学历", "专业", "必备"))]
+    critical = [r for r in risks if any(k in r for k in ("学历", "专业"))]
+    # "技能缺口"不算 critical，只是 normal gap
     level = "weak" if len(critical) >= 2 else "moderate" if len(risks) >= 1 else "strong"
-    score = max(0, 100 - len(risks) * 15 - len(critical) * 10)
+    score = max(0, 100 - len(risks) * 10 - len(critical) * 15)
 
     return DimensionResult(
         level=level,
@@ -211,11 +276,17 @@ def analyze_fit(
         1
     )
 
-    # 等级判断
-    critical_gaps = len(risks.evidence_refs) if risks.level == "weak" else 0
-    if overall >= 70 and cap.level != "weak" and critical_gaps < 2:
+    # 等级判断（宽松阈值）
+    critical_gaps = len([r for r in risks.evidence_refs if any(k in r for k in ("学历", "专业"))])
+
+    # uplift: 有项目经历 + 部分核心技能命中 → 至少 moderate
+    has_activity = bool(candidate_profile.projects or candidate_profile.internships or candidate_profile.work_experiences)
+    core_hit = cap.level != "weak"
+    uplift_to_moderate = has_activity and core_hit and critical_gaps == 0
+
+    if overall >= 65 and cap.level != "weak" and critical_gaps == 0:
         fit_level = "strong"
-    elif overall >= 45:
+    elif overall >= 40 or uplift_to_moderate:
         fit_level = "moderate"
     else:
         fit_level = "weak"
@@ -232,31 +303,31 @@ def analyze_fit(
         strengths.append("有相关项目经历")
     if growth.level == "strong":
         strengths.append("学习能力信号强")
+    elif growth.level == "moderate" and has_activity:
+        strengths.append("有项目经历和学习潜力")
     if evidence.level == "strong":
         strengths.append("成果证据充分")
 
-    # 差距
+    # 差距（过滤泛词）
     gaps = []
-    must = set(s.lower() for s in job_profile.must_have_capabilities)
+    must_real = {s for s in job_profile.must_have_capabilities if _is_real_skill(s.lower())}
     cand_skills = set(s["skill"].lower() for s in candidate_profile.skill_stack)
-    missing = must - cand_skills
+    missing = {s for s in must_real if s.lower() not in cand_skills}
     if missing:
-        gaps.append(f"必备技能缺口: {', '.join(list(missing)[:5])}")
+        gaps.append(f"技能缺口: {', '.join(list(missing)[:5])}")
     if not candidate_profile.projects and not candidate_profile.internships:
         gaps.append("缺少项目/实习经历")
     if not candidate_profile.achievements:
         gaps.append("缺少量化成果")
-    # 学历/专业
-    if job_profile.education_preference and job_profile.education_preference not in ("未明确", ""):
-        gaps.append(f"学历要求: {job_profile.education_preference}")
 
     # 可迁移优势
     transferable = candidate_profile.transferable_strengths[:5]
 
-    # 学习计划
+    # 学习计划（过滤泛词）
     learning_plan = []
     for skill in list(missing)[:5]:
-        learning_plan.append(f"补充「{skill}」相关技能和项目经验")
+        if _is_real_skill(skill.lower()):
+            learning_plan.append(f"补充「{skill}」相关技能和项目经验")
     if not candidate_profile.achievements:
         learning_plan.append("在项目经历中补充量化成果（规模、效率、准确率）")
 

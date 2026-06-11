@@ -640,6 +640,18 @@ V1.1 先做“诊断结果 + 学习优先级”，V2 再接学习资源库，避
 - [x] Golden Set: fit_level_match 0% → 20%，通过率 0% → 40%，avg_score 58.9 → 72.1
 - [x] 148 个测试全部通过
 
+### product-mvp-v0.20 — FitAnalysis 规则校准
+
+- [x] `_capability_fit` 过滤泛词（_is_real_skill + _TECH_EXCEPTIONS），"C"/"Go"/"R" 合法
+- [x] `_capability_fit` 阈值调整：moderate ≥30%（原 35%），strong ≥65%（原 70%）
+- [x] `_growth_potential` 项目经历本身算成长信号，有项目 + 学习信号 → moderate
+- [x] `_evidence_strength` 项目/实习/工作本身算证据，不只看 achievements
+- [x] `_risks_and_gaps` 技能缺口不算 critical gap（学历/专业才算），critical ≥2 才 weak
+- [x] uplift 逻辑：有项目经历 + 核心技能命中 + 无 critical gap → 至少 moderate
+- [x] gaps/learning_plan 过滤泛词（"计算机相关专业"不再当技能缺口）
+- [x] Golden Set: **通过率 40% → 100%**，avg_score 73.1 → 80.1，fit_level_match 20% → 60%
+- [x] 160 个测试全部通过
+
 ### V3.0 — 商业化
 
 - [ ] 高级分析功能

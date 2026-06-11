@@ -75,15 +75,23 @@ def test_data_analyst_identifies_relevant_skills():
 
 
 def test_critical_gap_lowers_level():
-    """critical_gap 会降低等级"""
+    """critical_gap 会降低等级（单个 critical → moderate，2个以上 → weak）"""
     from services.fit_analysis_service import _risks_and_gaps
+    # 单个 critical gap → moderate（v0.20 放宽）
     job = JobProfileResult(job_name="Python后端", must_have_capabilities=["Python", "FastAPI", "Docker"])
     cand = CandidateProfileResult(
         skill_stack=[],
         risk_points=["学历要求不满足"],
     )
     result = _risks_and_gaps(job, cand)
-    assert result.level == "weak"
+    assert result.level == "moderate"
+    # 2个 critical gap → weak
+    cand2 = CandidateProfileResult(
+        skill_stack=[],
+        risk_points=["学历要求不满足", "专业不匹配"],
+    )
+    result2 = _risks_and_gaps(job, cand2)
+    assert result2.level == "weak"
 
 
 def test_normal_gap_in_learning_plan():
