@@ -605,6 +605,16 @@ V1.1 先做“诊断结果 + 学习优先级”，V2 再接学习资源库，避
 - [x] Golden Set 评测：候选人画像 80.1 分，岗位画像待有真实 JD 数据后提升
 - [x] 当前不做 OCR
 
+### product-mvp-v0.16 — 岗位画像提取增强
+
+- [x] 重写 `_extract_responsibilities`：按段落标题精准提取职责
+- [x] 重写 `_extract_must_have_skills`：从任职要求段落提取技能词
+- [x] 新增 `_extract_nice_to_have_skills`：从加分段落单独提取
+- [x] 技能同义词归一化：React.js→React、Vue.js→Vue、K8S→Kubernetes
+- [x] Golden Set 匹配改进：包含式匹配 + 同义词映射
+- [x] Golden Set 评测：**job_profile_score 从 30.5 → 77.0**
+- [x] 126 个测试全部通过
+
 ### V3.0 — 商业化
 
 - [ ] 高级分析功能

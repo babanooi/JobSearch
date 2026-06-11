@@ -24,6 +24,7 @@ BLOCK_PATTERNS = [
 
 ALIASES = {
     "react.js": "React", "reactjs": "React",
+    "vue.js": "Vue", "vuejs": "Vue",
     "node.js": "Node.js", "nodejs": "Node.js",
     "kubernetes": "Kubernetes", "k8s": "Kubernetes",
     "postgresql": "PostgreSQL", "postgres": "PostgreSQL",

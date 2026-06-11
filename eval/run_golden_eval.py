@@ -22,23 +22,45 @@ def _load_golden_set(path: str = None) -> list[dict]:
         return json.load(f)
 
 
+_SYNONYM_MAP = {
+    "mysql": "mysql", "react": "react", "react.js": "react", "reactjs": "react",
+    "vue": "vue", "vue.js": "vue", "vuejs": "vue",
+    "node": "node.js", "nodejs": "node.js",
+    "k8s": "kubernetes", "kubernetes": "kubernetes",
+    "rest api": "restful api", "restful api": "restful api",
+    "llm": "llm", "大模型": "llm",
+    "rag": "rag", "检索增强生成": "rag",
+    "postgresql": "postgresql", "postgres": "postgresql",
+    "ai": "ai", "人工智能": "ai",
+    "go": "go", "golang": "go",
+    "js": "javascript", "javascript": "javascript",
+    "ts": "typescript", "typescript": "typescript",
+}
+
+
+def _normalize_for_match(text: str) -> str:
+    """归一化关键词用于匹配"""
+    t = text.lower().strip()
+    return _SYNONYM_MAP.get(t, t)
+
+
 def _keyword_hit_rate(gold_keywords: list[str], actual_items: list, key: str = "") -> tuple[float, list[str]]:
-    """计算关键词命中率，返回 (hit_rate, missed_keywords)"""
+    """计算关键词命中率，支持包含式匹配 + 同义词归一化"""
     if not gold_keywords:
         return 1.0, []
     actual_set = set()
     for item in actual_items:
         if isinstance(item, str):
-            actual_set.add(item.lower())
+            actual_set.add(_normalize_for_match(item))
         elif isinstance(item, dict):
             val = item.get(key or "skill", item.get("name", item.get("description", "")))
             if isinstance(val, str):
-                actual_set.add(val.lower())
+                actual_set.add(_normalize_for_match(val))
     hit = 0
     missed = []
     for kw in gold_keywords:
-        kw_lower = kw.lower()
-        if any(kw_lower in a for a in actual_set):
+        kw_norm = _normalize_for_match(kw)
+        if any(kw_norm in a or a in kw_norm for a in actual_set):
             hit += 1
         else:
             missed.append(kw)

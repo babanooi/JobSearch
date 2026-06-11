@@ -1,4 +1,4 @@
-"""Job profile extraction service — v0.9"""
+"""Job profile extraction service — v0.16 增强提取逻辑"""
 from __future__ import annotations
 import json
 import re
@@ -11,11 +11,173 @@ from services.screening import (
 )
 from services.jd_quality_service import filter_jd_items
 from services.profile_schemas import JobProfileResult, EvidenceItem
-from tools.skill_guard import normalize_job_name
-from tools.skill_taxonomy import filter_skill_names
+from tools.skill_guard import normalize_job_name, ALIASES
+from tools.skill_taxonomy import filter_skill_names, KNOWN_SKILLS
 from core.logger import get_logger
 
 logger = get_logger(__name__)
+
+# 职责段落标题关键词
+_RESPONSIBILITY_HEADERS = re.compile(
+    r"(岗位职责|工作职责|你将负责|工作内容|职责描述|Responsibilities|What you.ll do)",
+    re.I,
+)
+
+# 要求段落标题关键词
+_REQUIREMENT_HEADERS = re.compile(
+    r"(任职要求|岗位要求|必备条件|任职资格|我们希望你|Requirements|What we need)",
+    re.I,
+)
+
+# 加分/优先段落标题
+_NICE_TO_HAVE_HEADERS = re.compile(
+    r"(加分项|优先|熟悉更佳|nice.to.have|bonus|加分条件)",
+    re.I,
+)
+
+# 技能关键词提取正则：从"熟悉Python、掌握Django"中提取具体技能名
+_SKILL_EXTRACT_PATTERNS = [
+    # 英文技能名（Python, FastAPI, MySQL, React.js 等）
+    re.compile(r"[A-Z][A-Za-z+#./0-9]{1,25}"),
+    # 中文技能名（大模型、微服务、分布式等）
+    re.compile(r"[一-鿿]{2,8}"),
+]
+
+# 停用词——不是技能
+_SKILL_STOP_WORDS = {
+    "熟悉", "掌握", "了解", "精通", "具备", "使用", "具有", "会",
+    "以上", "优先", "经验", "能力", "技术", "开发", "工程师",
+    "相关", "学历", "专业", "本科", "硕士", "博士", "大专",
+    "年以上", "应届", "实习", "工作", "岗位", "职责", "要求",
+    "沟通", "协作", "团队", "学习", "能力", "抗压", "责任心",
+    "逻辑思维", "表达", "推动", "执行", "跨部门",
+    "五险一金", "年终奖", "带薪年假", "节日福利", "团建",
+}
+
+
+def _extract_skills_from_section(text: str) -> list[str]:
+    """从文本中提取技能词，返回去重归一化列表"""
+    skills = []
+    seen = set()
+    for sentence in re.split(r"[。；\n,，]", text):
+        sentence = sentence.strip()
+        if len(sentence) < 2:
+            continue
+        for pattern in _SKILL_EXTRACT_PATTERNS:
+            for match in pattern.finditer(sentence):
+                skill = match.group().strip()
+                if len(skill) < 2 or skill.lower() in _SKILL_STOP_WORDS:
+                    continue
+                normalized = _normalize_skill(skill)
+                if normalized.lower() not in seen:
+                    seen.add(normalized.lower())
+                    skills.append(normalized)
+    return skills
+
+
+def _normalize_skill(skill: str) -> str:
+    """归一化技能名：别名映射 + 大小写统一"""
+    s = skill.strip()
+    if not s:
+        return s
+    lower = s.lower()
+    if lower in ALIASES:
+        return ALIASES[lower]
+    # 首字母大写处理
+    if s.isascii() and s.isalpha():
+        return s[0].upper() + s[1:].lower()
+    return s
+
+
+def _extract_responsibilities(texts: list[str]) -> list[str]:
+    """从 JD 中提取岗位职责"""
+    responsibilities = []
+    seen = set()
+
+    for text in texts:
+        # 找职责段落
+        sections = _RESPONSIBILITY_HEADERS.split(text)
+        for i, section in enumerate(sections):
+            if _RESPONSIBILITY_HEADERS.match(section):
+                # 下一段就是职责内容
+                if i + 1 < len(sections):
+                    content = sections[i + 1]
+                    for s in re.split(r"[。；\n]", content):
+                        s = s.strip()
+                        # 停止条件：遇到要求/任职/薪资等段落
+                        if _REQUIREMENT_HEADERS.match(s) or len(s) < 6:
+                            continue
+                        if any(k in s for k in ("负责", "参与", "承担", "主导", "完成", "推动", "设计", "开发", "维护", "优化")):
+                            if s not in seen:
+                                seen.add(s)
+                                responsibilities.append(s[:120])
+
+        # 兜底：没找到标题时，扫描关键词
+        if not responsibilities:
+            for s in re.split(r"[。；\n]", text):
+                s = s.strip()
+                if any(k in s for k in ("负责", "参与", "承担", "主导")) and len(s) > 8:
+                    if s not in seen:
+                        seen.add(s)
+                        responsibilities.append(s[:120])
+
+    return responsibilities[:8]
+
+
+def _extract_must_have_skills(texts: list[str]) -> list[str]:
+    """从 JD 中提取必备技能"""
+    all_skills = []
+    seen = set()
+
+    for text in texts:
+        # 找要求段落
+        sections = _REQUIREMENT_HEADERS.split(text)
+        for i, section in enumerate(sections):
+            if _REQUIREMENT_HEADERS.match(section):
+                if i + 1 < len(sections):
+                    content = sections[i + 1]
+                    # 排除加分/优先段落
+                    if _NICE_TO_HAVE_HEADERS.search(content):
+                        content = _NICE_TO_HAVE_HEADERS.split(content)[0]
+                    skills = _extract_skills_from_section(content)
+                    for s in skills:
+                        if s.lower() not in seen:
+                            seen.add(s.lower())
+                            all_skills.append(s)
+
+        # 兜底：扫描"熟悉/掌握/精通"关键词所在的句子
+        if not all_skills:
+            for s in re.split(r"[。；\n]", text):
+                if any(k in s for k in ("熟悉", "掌握", "精通", "具备")):
+                    skills = _extract_skills_from_section(s)
+                    for sk in skills:
+                        if sk.lower() not in seen:
+                            seen.add(sk.lower())
+                            all_skills.append(sk)
+
+    # 过滤：保留技术技能，去掉过泛词
+    return filter_skill_names(all_skills, job_name="")[:15]
+
+
+def _extract_nice_to_have_skills(texts: list[str]) -> list[str]:
+    """从 JD 中提取加分/优先技能"""
+    all_skills = []
+    seen = set()
+
+    for text in texts:
+        # 找加分段落
+        sections = _NICE_TO_HAVE_HEADERS.split(text)
+        for i, section in enumerate(sections):
+            if _NICE_TO_HAVE_HEADERS.match(section):
+                if i + 1 < len(sections):
+                    content = sections[i + 1][:200]  # 只取前 200 字
+                    skills = _extract_skills_from_section(content)
+                    for s in skills:
+                        if s.lower() not in seen:
+                            seen.add(s.lower())
+                            all_skills.append(s)
+
+    return filter_skill_names(all_skills, job_name="")[:8]
 
 
 def extract_job_profile(job_name: str, top_n: int = 20, raw_jd_texts: list[str] = None) -> JobProfileResult:
@@ -39,12 +201,7 @@ def extract_job_profile(job_name: str, top_n: int = 20, raw_jd_texts: list[str] 
     emp = _infer_employment_type(texts)
 
     # 核心职责
-    responsibilities = []
-    for t in texts:
-        for s in re.split(r"[。；\n]", t):
-            if any(k in s for k in ("负责", "参与", "承担", "主导", "完成")) and len(s.strip()) > 8:
-                responsibilities.append(s.strip()[:120])
-    responsibilities = list(dict.fromkeys(responsibilities))[:8]
+    responsibilities = _extract_responsibilities(texts)
 
     # 能力要求
     edu_req = _extract_education_requirements(texts)
@@ -53,12 +210,13 @@ def extract_job_profile(job_name: str, top_n: int = 20, raw_jd_texts: list[str] 
     soft = _count_hits(texts, SOFT_REQUIREMENTS)
     domains = _count_hits(texts, BUSINESS_DOMAINS)
 
-    # 从 JD 文本提取技能词
-    all_sentences = []
-    for t in texts:
-        all_sentences.extend(re.split(r"[。；\n]", t))
-    skill_sentences = [s for s in all_sentences if any(k in s for k in ("熟悉", "掌握", "了解", "精通", "具备", "会", "使用"))]
-    must_have = filter_skill_names([s.strip()[:30] for s in skill_sentences[:20]], job_name=job_name)[:10]
+    # 必备技能和加分技能分别提取
+    must_have = _extract_must_have_skills(texts)
+    nice_to_have = _extract_nice_to_have_skills(texts)
+
+    # 去重：nice_to_have 中去掉已在 must_have 中的
+    must_set = {s.lower() for s in must_have}
+    nice_to_have = [s for s in nice_to_have if s.lower() not in must_set]
 
     # 成长空间
     growth = []
@@ -76,7 +234,7 @@ def extract_job_profile(job_name: str, top_n: int = 20, raw_jd_texts: list[str] 
             source=f"{item.get('company', '')} - {item.get('title', '')}",
         ))
 
-    # 置信度（考虑有效样本数）
+    # 置信度
     valid_count = len(jd_items)
     conf = "high" if valid_count >= 8 else "medium" if valid_count >= 3 else "low"
 
@@ -98,7 +256,7 @@ def extract_job_profile(job_name: str, top_n: int = 20, raw_jd_texts: list[str] 
         target_audience=stage["target_audience"],
         responsibilities=responsibilities,
         must_have_capabilities=must_have,
-        nice_to_have_capabilities=[s["name"] for s in soft[:5]],
+        nice_to_have_capabilities=nice_to_have,
         experience_requirement=exp_req[0]["value"] if exp_req else "未明确",
         education_preference=edu_req[0]["degree"] if edu_req else "未明确",
         major_preference="、".join(m["major"] for m in major_req[:3]) if major_req else "未明确",
