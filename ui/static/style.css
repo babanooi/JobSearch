@@ -487,6 +487,29 @@ cite-warn{color:var(--gold);font-size:0.55rem;margin-left:3px;}
 }
 .screening-dims span{font-size:0.62rem;color:var(--text-muted);}
 .screening-dims b{font-family:var(--mono);font-size:0.78rem;color:var(--text);}
+
+/* ── 五维评分卡片（v0.21）── */
+.fit-dims-section{margin-bottom:1rem;}
+.fit-dims-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:0.5rem;margin-top:0.4rem;}
+.fit-dim-card{
+  background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:0.6rem 0.5rem;text-align:center;display:flex;flex-direction:column;gap:0.25rem;
+}
+.fit-dim-card.dim-strong{border-color:rgba(16,185,129,0.4);}
+.fit-dim-card.dim-moderate{border-color:rgba(245,158,11,0.3);}
+.fit-dim-card.dim-weak{border-color:rgba(239,68,68,0.3);}
+.fit-dim-head{display:flex;align-items:center;gap:0.3rem;justify-content:center;}
+.fit-dim-icon{font-size:0.8rem;}
+.fit-dim-label{font-size:0.65rem;font-weight:600;color:var(--text-dim);}
+.fit-dim-score{font-family:var(--mono);font-size:1.1rem;font-weight:700;color:var(--text);}
+.fit-dim-score small{font-size:0.55rem;color:var(--text-muted);margin-left:1px;}
+.fit-dim-level{font-size:0.58rem;color:var(--text-dim);}
+.fit-dim-card.dim-strong .fit-dim-level{color:var(--green);}
+.fit-dim-card.dim-moderate .fit-dim-level{color:var(--gold);}
+.fit-dim-card.dim-weak .fit-dim-level{color:var(--red);}
+.fit-dim-summary{font-size:0.6rem;color:var(--text-dim);line-height:1.4;text-align:left;word-break:break-word;}
+.fit-dim-refs{display:flex;flex-direction:column;gap:0.15rem;text-align:left;}
+.fit-dim-ref{font-size:0.58rem;color:var(--text-muted);word-break:break-word;}
 .profile-card-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;margin:0.9rem 0;}
 .profile-card-grid.single{grid-template-columns:1fr;margin-top:0;}
 .profile-card{

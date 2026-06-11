@@ -673,82 +673,107 @@ function renderProfileReport(jobProfile,candidateProfile,fitReport,errorMsg){
   const cand=candidateProfile||{};
   const fitLevel=fit.overall_fit_level||'moderate';
   const fitScore=Math.round(Number(fit.overall_score)||0);
-  const mode=fit._analysis_mode||currentAnalysisMode||'agent';
+  const mode=currentAnalysisMode||'agent';
   const modeLabel=mode==='agent'?'FitAnalysisAgent 综合判断':'规则分析兜底';
-  const modeColor=mode==='agent'?'var(--green)':'var(--gold)';
+  const ruleScore=currentRuleScore?Math.round(currentRuleScore):0;
 
+  // ── 辅助函数 ──
+  const dimLabel={capability_fit:'能力匹配',experience_relevance:'经历相关',growth_potential:'成长潜力',evidence_strength:'证据充分',risks_and_gaps:'风险短板'};
+  const dimIcon={capability_fit:'🎯',experience_relevance:'📂',growth_potential:'🌱',evidence_strength:'📋',risks_and_gaps:'⚠️'};
+
+  // ── 开始渲染 ──
   let h='<div class="screening-report">'
-    // 头部
-    +'<div class="screening-head">'
-    +'<div><div class="screening-title">岗位适配分析</div>'
-    +'<div class="gap-subtle">'+esc(job.job_name||gapCurrentJob)+' · '+esc(job.job_type||'未知')+' · '+esc(job.employment_type||'')+'</div></div>'
-    +'<div class="screening-score"><span>'+fitScore+'</span><small>/100</small></div>'
-    +'<span class="screening-risk '+riskClass(fitLevel)+'">适配'+riskLabel(fitLevel)+'</span>'
-    +'</div>'
-    // 分析模式
-    +'<div style="font-size:0.65rem;color:'+modeColor+';margin-bottom:0.6rem;">'+esc(modeLabel)+'</div>'
-    +'<div class="screening-summary">'+esc(fit.fit_summary||'暂无摘要')+'</div>'
 
-    // 两张画像卡
-    +'<div class="profile-card-grid">'
-    // 岗位画像卡
-    +'<article class="profile-card job-profile-card">'
-    +'<div class="profile-card-head"><div><div class="profile-card-title">岗位画像</div></div><span>'+esc(job.job_type||'未知')+'</span></div>'
-    +'<div class="profile-kv"><span>用工类型</span><b>'+esc(job.employment_type||'未明确')+'</b></div>'
-    +'<div class="profile-kv"><span>面向人群</span><b>'+esc(job.target_audience||'未明确')+'</b></div>'
-    +'<div class="profile-kv"><span>JD 样本</span><b>'+(job.valid_sample_count||job.sample_count||0)+' 条有效'+(job.filtered_sample_count?' (过滤 '+job.filtered_sample_count+' 条低质量)':'')+'</b></div>'
-    +'<div class="profile-kv"><span>学历要求</span><b>'+esc(job.education_preference||'未明确')+'</b></div>'
-    +'<div class="profile-kv"><span>经验要求</span><b>'+esc(job.experience_requirement||'未明确')+'</b></div>'
-    +'<p>核心职责</p><ul>'+profileEvidenceList(job.responsibilities||[],'暂无明确职责')+'</ul>'
-    +'<p>必备能力</p><div class="screening-chip-row must">'+chipRow(job.must_have_capabilities||[],'暂无')+'</div>'
-    +'<p>加分能力</p><div class="screening-chip-row">'+chipRow(job.nice_to_have_capabilities||[],'暂无')+'</div>'
-    +'<p>业务场景</p><div class="screening-chip-row">'+chipRow(job.business_context||[],'暂无')+'</div>'
-    +'<div class="profile-kv"><span>置信度</span><b>'+esc(job.confidence||'low')+'</b></div>'
-    +(job.confidence==='low'?'<div class="gap-confidence low" style="margin-top:0.4rem;">⚠ 当前岗位样本较少，画像可信度有限</div>':'')
-    +'</article>'
-    // 候选人画像卡
-    +'<article class="profile-card candidate-profile-card">'
-    +'<div class="profile-card-head"><div><div class="profile-card-title">候选人画像</div></div><span>'+esc((cand.skill_stack||[]).length+' 技能')+'</span></div>'
-    +'<div class="profile-kv"><span>教育背景</span><b>'+esc((cand.education_background?.degree||'')+' '+(cand.education_background?.major||'')+' '+(cand.education_background?.graduation_year||'')).trim()||'未明确'+'</b></div>'
-    +'<p>技能栈</p><div class="screening-chip-row matched">'+chipRow((cand.skill_stack||[]).map(s=>s.skill||s).slice(0,12),'暂未识别')+'</div>'
-    +'<p>项目经历</p><ul>'+profileEvidenceList((cand.projects||[]).map(p=>p.description||p.name),'未识别到项目')+'</ul>'
-    +'<p>成果证据</p><ul>'+profileEvidenceList((cand.achievements||[]).map(a=>a.description),'未识别到成果')+'</ul>'
-    +'<p>学习信号</p><div class="screening-chip-row">'+chipRow(cand.learning_signals||[],'暂无')+'</div>'
-    +(cand.risk_points?.length?'<p>风险点</p><div class="screening-chip-row" style="border-color:rgba(239,68,68,0.3);">'+chipRow(cand.risk_points,'')+'</div>':'')
-    +'<div class="profile-kv"><span>置信度</span><b>'+esc(cand.confidence||'low')+'</b></div>'
-    +'</article>'
-    +'</div>'
+  // ① 顶部摘要
+  +'<div class="screening-head">'
+  +'<div><div class="screening-title">岗位适配分析</div>'
+  +'<div class="gap-subtle">'+esc(job.job_name||gapCurrentJob)+' · '+esc(job.job_type||'')+' · '+esc(job.employment_type||'')+'</div></div>'
+  +'<div class="screening-score"><span>'+fitScore+'</span><small>/100</small></div>'
+  +'<span class="screening-risk '+riskClass(fitLevel)+'">适配'+riskLabel(fitLevel)+'</span>'
+  +'</div>'
 
-    // 五维适配
-    +'<div class="screening-dims">';
-  const dimMap={capability_fit:'能力匹配',experience_relevance:'经历相关',growth_potential:'成长潜力',evidence_strength:'证据充分',risks_and_gaps:'风险短板'};
-  for(const[key,label] of Object.entries(dimMap)){
+  // 分析模式提示
+  +(mode==='rule_fallback'?'<div class="gap-confidence medium" style="margin-bottom:0.6rem;">ℹ 当前使用规则分析兜底，建议补充更多简历细节或稍后重试 Agent 分析</div>'
+    :'<div style="font-size:0.65rem;color:var(--green);margin-bottom:0.6rem;">✓ FitAnalysisAgent 综合判断</div>')
+
+  // 摘要
+  +'<div class="screening-summary">'+esc(fit.fit_summary||'暂无摘要')+'</div>'
+
+  // ── 五维评分 ──
+  +'<div class="fit-dims-section">'
+  +'<div class="gap-block-title">五维评分</div>'
+  +'<div class="fit-dims-grid">';
+  for(const[key,label] of Object.entries(dimLabel)){
     const dim=fit[key]||{};
-    h+='<div title="'+esc(dim.summary||'')+'"><span>'+esc(label)+'</span><b>'+esc(String(Math.round(dim.score||0)))+'</b></div>';
+    const score=Math.round(dim.score||0);
+    const level=dim.level||'moderate';
+    const levelCls=level==='strong'?'dim-strong':level==='moderate'?'dim-moderate':'dim-weak';
+    h+='<div class="fit-dim-card '+levelCls+'">'
+      +'<div class="fit-dim-head"><span class="fit-dim-icon">'+(dimIcon[key]||'')+'</span><span class="fit-dim-label">'+esc(label)+'</span></div>'
+      +'<div class="fit-dim-score"><span>'+score+'</span><small>/100</small></div>'
+      +'<div class="fit-dim-level">'+esc(level)+'</div>'
+      +'<div class="fit-dim-summary">'+esc(dim.summary||'暂无说明')+'</div>'
+      +(dim.evidence_refs?.length?'<div class="fit-dim-refs">'+dim.evidence_refs.slice(0,2).map(r=>'<span class="fit-dim-ref">'+esc(r)+'</span>').join('')+'</div>':'')
+      +'</div>';
   }
-  h+='</div>';
+  h+='</div></div>';
 
-  // 优势 + 差距
+  // ── 岗位画像卡 ──
+  h+='<div class="profile-card-grid">'
+  +'<article class="profile-card job-profile-card">'
+  +'<div class="profile-card-head"><div><div class="profile-card-title">岗位画像</div></div><span>'+esc(job.job_type||'未知')+'</span></div>'
+  +'<div class="profile-kv"><span>用工类型</span><b>'+esc(job.employment_type||'未明确')+'</b></div>'
+  +'<div class="profile-kv"><span>面向人群</span><b>'+esc(job.target_audience||'未明确')+'</b></div>'
+  +'<div class="profile-kv"><span>JD 样本</span><b>'+(job.valid_sample_count||job.sample_count||0)+' 条有效'+(job.filtered_sample_count?' (过滤 '+job.filtered_sample_count+' 条低质量)':'')+'</b></div>'
+  +'<div class="profile-kv"><span>学历要求</span><b>'+esc(job.education_preference||'未明确')+'</b></div>'
+  +'<div class="profile-kv"><span>经验要求</span><b>'+esc(job.experience_requirement||'未明确')+'</b></div>'
+  +'<p>必备能力</p><div class="screening-chip-row must">'+chipRow(job.must_have_capabilities||[],'暂无')+'</div>'
+  +'<p>加分能力</p><div class="screening-chip-row">'+chipRow(job.nice_to_have_capabilities||[],'暂无')+'</div>'
+  +'<div class="profile-kv"><span>置信度</span><b>'+esc(job.confidence||'low')+'</b></div>'
+  +(job.confidence==='low'?'<div class="gap-confidence low" style="margin-top:0.4rem;">⚠ 当前岗位样本较少，画像可信度有限</div>':'')
+  +'</article>'
+
+  // ── 候选人画像卡 ──
+  +'<article class="profile-card candidate-profile-card">'
+  +'<div class="profile-card-head"><div><div class="profile-card-title">候选人画像</div></div><span>'+esc((cand.skill_stack||[]).length+' 技能')+'</span></div>'
+  +'<div class="profile-kv"><span>教育背景</span><b>'+esc(((cand.education_background||{}).degree||'')+' '+((cand.education_background||{}).major||'')+' '+((cand.education_background||{}).graduation_year||'')).trim()||'未明确'+'</b></div>'
+  +'<div class="profile-kv"><span>工作年限</span><b>'+esc(cand.experience_years!=null?cand.experience_years+'年':'未知')+(cand.experience_years_confidence==='inferred'?' (推算)':'')+'</b></div>'
+  +'<p>技能栈</p><div class="screening-chip-row matched">'+chipRow((cand.skill_stack||[]).map(s=>s.skill||s).slice(0,12),'暂未识别')+'</div>'
+  +'<p>项目经历</p><ul>'+profileEvidenceList((cand.projects||[]).map(p=>p.description||p.name),'未识别到项目')+'</ul>'
+  +'<p>成果证据</p><ul>'+profileEvidenceList((cand.achievements||[]).map(a=>a.description),'未识别到成果')+'</ul>'
+  +'<div class="profile-kv"><span>置信度</span><b>'+esc(cand.confidence||'low')+'</b></div>'
+  +'</article>'
+  +'</div>'
+
+  // ── 优势 ──
   +'<div class="screening-grid">';
+
   const strengths=fit.strengths||[];
   const gaps=fit.gaps||[];
-  if(strengths.length)h+='<div class="screening-card matched"><div class="gap-block-title">优势</div><ul>'+renderMiniList(strengths)+'</ul></div>';
-  if(gaps.length)h+='<div class="screening-card missing"><div class="gap-block-title">差距</div><ul>'+renderMiniList(gaps)+'</ul></div>';
+  if(strengths.length)h+='<div class="screening-card matched"><div class="gap-block-title">✓ 优势</div><ul>'+renderMiniList(strengths)+'</ul></div>';
+
+  // ── 差距 ──
+  if(gaps.length)h+='<div class="screening-card missing"><div class="gap-block-title">✕ 差距</div><ul>'+renderMiniList(gaps)+'</ul></div>';
+
+  // ── 可迁移优势 ──
+  const transferable=fit.transferable_strengths||[];
+  if(transferable.length)h+='<div class="screening-card"><div class="gap-block-title">⇄ 可迁移优势</div><ul>'+renderMiniList(transferable)+'</ul></div>';
+
   h+='</div>';
 
-  // 学习计划
+  // ── 学习计划 ──
   const learning=fit.learning_plan||[];
-  if(learning.length)h+='<div class="screening-card"><div class="gap-block-title">学习计划</div><ul>'+renderMiniList(learning)+'</ul></div>';
+  if(learning.length)h+='<div class="screening-card"><div class="gap-block-title">📚 学习计划</div><ul>'+renderMiniList(learning)+'</ul></div>';
 
-  // 面试策略
+  // ── 面试策略 ──
   const interview=fit.interview_strategy||[];
-  if(interview.length)h+='<div class="screening-card"><div class="gap-block-title">面试策略</div><ul>'+renderMiniList(interview)+'</ul></div>';
+  if(interview.length)h+='<div class="screening-card"><div class="gap-block-title">🎯 面试策略</div><ul>'+renderMiniList(interview)+'</ul></div>';
 
-  // 可迁移优势
-  const transferable=fit.transferable_strengths||[];
-  if(transferable.length)h+='<div class="screening-card"><div class="gap-block-title">可迁移优势</div><ul>'+renderMiniList(transferable)+'</ul></div>';
+  // ── 证据引用 ──
+  const refs=fit.evidence_refs||[];
+  if(refs.length)h+='<div class="screening-card"><div class="gap-block-title">📎 证据引用</div><ul>'+refs.map(r=>'<li style="font-size:0.72rem;color:var(--text-dim);">'+esc(r)+'</li>').join('')+'</ul></div>';
 
-  // 评估反馈按钮（v0.13）
+  // ── 评估反馈按钮（v0.13）──
   const reportId=fitReport?.id||0;
   if(currentJobProfile?.id)h+=renderEvalButtons('job_profile',currentJobProfile.id);
   if(currentCandidateProfile?.id)h+=renderEvalButtons('candidate_profile',currentCandidateProfile.id);

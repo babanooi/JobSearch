@@ -652,6 +652,18 @@ V1.1 先做“诊断结果 + 学习优先级”，V2 再接学习资源库，避
 - [x] Golden Set: **通过率 40% → 100%**，avg_score 73.1 → 80.1，fit_level_match 20% → 60%
 - [x] 160 个测试全部通过
 
+### product-mvp-v0.21 — 前端适配报告展示增强
+
+- [x] `renderProfileReport` 重写：顶部摘要 → 五维评分卡片 → 画像卡 → 优势/差距/学习计划/面试策略/证据引用
+- [x] 五维评分卡片：每维显示 level + score + summary + evidence_refs，strong/moderate/weak 三色边框
+- [x] `analysis_mode` 提示：agent 显示绿色 ✓，rule_fallback 显示黄色提示
+- [x] 优势/差距/学习计划/面试策略/证据引用完整展示
+- [x] 候选人画像卡新增工作年限展示
+- [x] `.fit-dims-grid` / `.fit-dim-card` CSS 响应式
+- [x] 160 个测试全部通过
+- [x] Golden Set 不退化（通过率 100%，avg_score 79.1）
+- [x] 不改变评分逻辑
+
 ### V3.0 — 商业化
 
 - [ ] 高级分析功能
