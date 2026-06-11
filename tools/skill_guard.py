@@ -23,12 +23,57 @@ BLOCK_PATTERNS = [
 ]
 
 ALIASES = {
+    # 工程技术
     "react.js": "React", "reactjs": "React",
     "vue.js": "Vue", "vuejs": "Vue",
     "node.js": "Node.js", "nodejs": "Node.js",
     "kubernetes": "Kubernetes", "k8s": "Kubernetes",
     "postgresql": "PostgreSQL", "postgres": "PostgreSQL",
     "golang": "Go", "go语言": "Go",
+    # 产品
+    "产品需求文档": "PRD", "需求文档": "PRD", "prd": "PRD",
+    "用户调研": "用户研究", "竞品调研": "竞品分析",
+    "axure rp": "Axure", "axure": "Axure",
+    "figma": "Figma", "figma设计": "Figma",
+    "墨刀": "墨刀", "modao": "墨刀",
+    "原型": "原型设计",
+    "ab测试": "A/B测试", "ab test": "A/B测试",
+    "数据埋点": "数据埋点", "埋点分析": "数据埋点",
+    # AI
+    "大语言模型": "LLM", "大模型": "LLM",
+    "检索增强生成": "RAG", "检索增强": "RAG",
+    "智能体": "Agent", "ai agent": "Agent", "aiagent": "Agent",
+    "prompt engineering": "Prompt Engineering", "提示词工程": "Prompt Engineering",
+    "多模态大模型": "多模态",
+    # 数据分析
+    "power bi": "PowerBI", "powerbi": "PowerBI",
+    "business intelligence": "BI", "bi工具": "BI",
+    # 方案/售前
+    "poc": "PoC", "poc验证": "PoC",
+    "招投标": "招投标", "投标": "招投标",
+}
+
+# ═══ 非技术岗位能力词白名单 ═══
+# 这些词不会被 guard_skill_list 过滤，允许进入 must_have/nice_to_have
+CAPABILITY_WHITELIST = {
+    # 产品能力
+    "PRD", "需求分析", "用户研究", "竞品分析", "产品设计", "原型设计",
+    "Axure", "Figma", "墨刀", "用户画像", "业务流程", "产品规划",
+    "数据埋点", "A/B测试", "用户增长", "Roadmap", "MVP",
+    # 数据分析
+    "SQL", "Excel", "Tableau", "PowerBI", "BI",
+    "指标体系", "数据看板", "漏斗分析", "留存分析", "转化率",
+    "用户行为分析", "统计分析", "可视化",
+    # AI 产品/应用
+    "LLM", "RAG", "Prompt Engineering", "Agent", "多模态",
+    "知识库", "向量数据库", "模型评估", "AI应用落地", "AI产品设计",
+    "智能客服", "推荐系统", "搜索推荐", "AIGC",
+    # 解决方案/售前
+    "方案设计", "客户需求分析", "项目交付", "PoC", "招投标",
+    "技术方案", "需求调研", "客户沟通", "业务咨询", "行业解决方案",
+    # 项目管理/协作
+    "项目管理", "跨部门协作", "需求管理", "进度管理", "风险管理",
+    "Scrum", "Jira", "沟通协调", "文档能力",
 }
 
 # ═══ 岗位名归一化 ═══
@@ -226,11 +271,15 @@ def guard_skill_list(raw_skills: list[str]) -> list[str]:
         skill = skill.strip()
         if not skill:
             continue
+        skill_lower = skill.lower()
+        skill = ALIASES.get(skill_lower, skill)
+        # 白名单内的能力词直接保留
+        if skill in CAPABILITY_WHITELIST or skill_lower in {s.lower() for s in CAPABILITY_WHITELIST}:
+            cleaned.append(skill)
+            continue
         if any(re.search(p, skill) for p in BLOCK_PATTERNS):
             rejected.append(skill)
             continue
-        skill_lower = skill.lower()
-        skill = ALIASES.get(skill_lower, skill)
         meta = assess_skill_quality(skill)
         if not meta["accepted"]:
             rejected.append(skill)

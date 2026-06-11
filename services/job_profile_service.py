@@ -148,14 +148,23 @@ def _extract_must_have_skills(texts: list[str]) -> list[str]:
         # 兜底：扫描"熟悉/掌握/精通"关键词所在的句子
         if not all_skills:
             for s in re.split(r"[。；\n]", text):
-                if any(k in s for k in ("熟悉", "掌握", "精通", "具备")):
+                if any(k in s for k in ("熟悉", "掌握", "精通", "具备", "了解", "擅长")):
                     skills = _extract_skills_from_section(s)
                     for sk in skills:
                         if sk.lower() not in seen:
                             seen.add(sk.lower())
                             all_skills.append(sk)
 
-    # 过滤：保留技术技能，去掉过泛词
+    # 始终从全文匹配 CAPABILITY_WHITELIST 中的已知能力词（补漏）
+    from tools.skill_guard import CAPABILITY_WHITELIST
+    for text in texts:
+        text_lower = text.lower()
+        for cap in CAPABILITY_WHITELIST:
+            if cap.lower() in text_lower and cap.lower() not in seen:
+                seen.add(cap.lower())
+                all_skills.append(cap)
+
+    # 过滤：保留技术/能力词，去掉过泛词
     return filter_skill_names(all_skills, job_name="")[:15]
 
 

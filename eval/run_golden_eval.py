@@ -23,18 +23,32 @@ def _load_golden_set(path: str = None) -> list[dict]:
 
 
 _SYNONYM_MAP = {
+    # 工程技术
     "mysql": "mysql", "react": "react", "react.js": "react", "reactjs": "react",
     "vue": "vue", "vue.js": "vue", "vuejs": "vue",
     "node": "node.js", "nodejs": "node.js",
     "k8s": "kubernetes", "kubernetes": "kubernetes",
     "rest api": "restful api", "restful api": "restful api",
-    "llm": "llm", "大模型": "llm",
-    "rag": "rag", "检索增强生成": "rag",
     "postgresql": "postgresql", "postgres": "postgresql",
-    "ai": "ai", "人工智能": "ai",
     "go": "go", "golang": "go",
     "js": "javascript", "javascript": "javascript",
     "ts": "typescript", "typescript": "typescript",
+    # AI/LLM
+    "llm": "llm", "大模型": "llm", "大语言模型": "llm",
+    "rag": "rag", "检索增强生成": "rag", "检索增强": "rag",
+    "agent": "agent", "智能体": "agent", "ai agent": "agent",
+    "ai": "ai", "人工智能": "ai",
+    # 产品
+    "prd": "prd", "产品需求文档": "prd", "需求文档": "prd",
+    "用户调研": "用户研究", "用户访谈": "用户研究",
+    "竞品调研": "竞品分析",
+    "axure rp": "axure", "axure": "axure",
+    "figma": "figma",
+    "ab测试": "a/b测试", "ab test": "a/b测试",
+    "原型": "原型设计",
+    # 数据分析
+    "power bi": "powerbi", "powerbi": "powerbi",
+    "business intelligence": "bi",
 }
 
 

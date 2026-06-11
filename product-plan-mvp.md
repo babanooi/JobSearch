@@ -615,6 +615,16 @@ V1.1 先做“诊断结果 + 学习优先级”，V2 再接学习资源库，避
 - [x] Golden Set 评测：**job_profile_score 从 30.5 → 77.0**
 - [x] 126 个测试全部通过
 
+### product-mvp-v0.17 — taxonomy 扩展到非技术岗位
+
+- [x] `CAPABILITY_WHITELIST`：产品能力词 / 数据分析词 / AI应用词 / 方案售前词 / 项目管理词（50+）
+- [x] `ALIASES` 扩展：产品需求文档→PRD、大模型→LLM、智能体→Agent、axure rp→Axure 等
+- [x] `guard_skill_list`：白名单能力词直接保留，不被 BLOCK_PATTERNS 过滤
+- [x] `_extract_must_have_skills`：全文匹配 CAPABILITY_WHITELIST 补漏，支持非技术岗位
+- [x] Golden Set：job_profile_score **77.0 → 91.7**，case_002 AI产品经理 **30 → 86**
+- [x] `_SYNONYM_MAP` 扩展：产品/AI/数据同义词映射
+- [x] 138 个测试全部通过
+
 ### V3.0 — 商业化
 
 - [ ] 高级分析功能
