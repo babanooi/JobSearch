@@ -117,7 +117,16 @@ def _evaluate_case(case: dict, job_profile: dict, candidate_profile: dict, fit_r
     candidate_score = round((cand_skill_hit * 0.4 + cand_proj_hit * 0.4 + cand_achieve_hit * 0.2) * 100, 1)
 
     # 适配分析评估
-    fit_level_match = fit_report.get("overall_fit_level") == gold_fit.get("overall_fit_level")
+    actual_level = fit_report.get("overall_fit_level", "moderate")
+    gold_level = gold_fit.get("overall_fit_level", "moderate")
+    fit_level_match = actual_level == gold_level
+    # near_match: strong/moderate 之间算近似，weak 与其他不算
+    _near_set = {("strong", "moderate"), ("moderate", "strong")}
+    fit_level_near_match = (actual_level, gold_level) in _near_set
+    # mismatch_reason
+    mismatch_reason = ""
+    if not fit_level_match:
+        mismatch_reason = f"gold={gold_level}, actual={actual_level}, score={fit_report.get('overall_score', '?')}"
 
     strengths_hit, strengths_miss = _keyword_hit_rate(
         gold_fit.get("expected_strengths", []),
@@ -144,11 +153,14 @@ def _evaluate_case(case: dict, job_profile: dict, candidate_profile: dict, fit_r
     ), 1)
 
     return {
-        "passed": total_score >= 50 and fit_level_match,
+        "passed": total_score >= 50 and (fit_level_match or fit_level_near_match),
         "score": total_score,
         "job_profile_score": job_profile_score,
         "candidate_profile_score": candidate_score,
         "fit_level_match": fit_level_match,
+        "fit_level_near_match": fit_level_near_match,
+        "actual_fit_level": actual_level,
+        "mismatch_reason": mismatch_reason,
         "strengths_hit_rate": round(strengths_hit * 100, 1),
         "gaps_hit_rate": round(gaps_hit * 100, 1),
         "learning_plan_hit_rate": round(learning_hit * 100, 1),

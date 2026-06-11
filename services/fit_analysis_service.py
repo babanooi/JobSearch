@@ -1,6 +1,7 @@
-"""Fit analysis service — v0.9 综合适配评估"""
+"""Fit analysis service — v0.18 综合适配评估（岗位类型感知权重）"""
 from __future__ import annotations
 import json
+import re
 from datetime import datetime
 from services.profile_schemas import (
     JobProfileResult, CandidateProfileResult, FitAnalysisResult, DimensionResult,
@@ -10,58 +11,112 @@ from core.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _infer_job_weight_profile(job: JobProfileResult) -> str:
+    """根据岗位画像推断权重类型"""
+    jt = (job.job_type or "").lower()
+    et = (job.employment_type or "").lower()
+    name = (job.job_name or "").lower()
+
+    if any(k in jt for k in ("实习", "intern")):
+        return "intern"
+    if any(k in jt for k in ("校招", "campus", "应届")):
+        return "campus"
+    if any(k in name for k in ("产品", "pm", "product")):
+        return "product"
+    if any(k in name for k in ("数据", "分析", "data")):
+        return "data"
+    if any(k in name for k in ("方案", "售前", "solution", "pre-sales")):
+        return "solution"
+    if any(k in jt for k in ("正式", "社招")) or any(k in et for k in ("全职", "社招")):
+        return "senior"
+    return "default"
+
+
+# 岗位类型 → 五维权重
+_WEIGHT_PROFILES = {
+    "intern":   {"capability": 0.25, "experience": 0.25, "growth": 0.25, "evidence": 0.10, "risk": 0.15},
+    "campus":   {"capability": 0.25, "experience": 0.25, "growth": 0.25, "evidence": 0.10, "risk": 0.15},
+    "senior":   {"capability": 0.30, "experience": 0.30, "growth": 0.10, "evidence": 0.20, "risk": 0.10},
+    "product":  {"capability": 0.20, "experience": 0.25, "growth": 0.20, "evidence": 0.15, "risk": 0.20},
+    "data":     {"capability": 0.20, "experience": 0.25, "growth": 0.20, "evidence": 0.15, "risk": 0.20},
+    "solution": {"capability": 0.20, "experience": 0.25, "growth": 0.20, "evidence": 0.15, "risk": 0.20},
+    "default":  {"capability": 0.30, "experience": 0.25, "growth": 0.15, "evidence": 0.15, "risk": 0.15},
+}
+
+
 def _capability_fit(job: JobProfileResult, cand: CandidateProfileResult) -> DimensionResult:
     """能力匹配度"""
     must = set(s.lower() for s in job.must_have_capabilities)
+    nice = set(s.lower() for s in job.nice_to_have_capabilities)
     cand_skills = set(s["skill"].lower() for s in cand.skill_stack)
-    matched = must & cand_skills
-    missing = must - cand_skills
-    ratio = len(matched) / max(1, len(must))
+
+    must_matched = must & cand_skills
+    nice_matched = nice & cand_skills
+    must_missing = must - cand_skills
+
+    must_ratio = len(must_matched) / max(1, len(must))
+    nice_ratio = len(nice_matched) / max(1, len(nice)) if nice else 1.0
+    ratio = must_ratio * 0.75 + nice_ratio * 0.25
 
     if ratio >= 0.7:
         level = "strong"
-    elif ratio >= 0.4:
+    elif ratio >= 0.35:
         level = "moderate"
     else:
         level = "weak"
 
-    refs = [f"匹配: {', '.join(list(matched)[:5])}"] if matched else []
-    if missing:
-        refs.append(f"缺口: {', '.join(list(missing)[:5])}")
+    refs = []
+    if must_matched:
+        refs.append(f"技能匹配: {', '.join(list(must_matched)[:5])}")
+    if must_missing:
+        refs.append(f"技能缺口: {', '.join(list(must_missing)[:5])}")
 
     return DimensionResult(
         level=level,
         score=round(ratio * 100, 1),
-        summary=f"必备技能覆盖 {len(matched)}/{len(must)}",
+        summary=f"必备技能覆盖 {len(must_matched)}/{len(must)}，加分技能覆盖 {len(nice_matched)}/{len(nice)}",
         evidence_refs=refs,
     )
 
 
 def _experience_relevance(job: JobProfileResult, cand: CandidateProfileResult) -> DimensionResult:
-    """经历相关性"""
-    has_exp = bool(cand.projects or cand.internships or cand.work_experiences)
-    project_count = len(cand.projects)
-    intern_count = len(cand.internships)
-    work_count = len(cand.work_experiences)
-    total = project_count + intern_count + work_count
+    """经历相关性 — 不只看数量，还看内容相关度"""
+    projects = cand.projects or []
+    internships = cand.internships or []
+    work = cand.work_experiences or []
+    total = len(projects) + len(internships) + len(work)
 
-    if total >= 3 and has_exp:
+    # 项目经历有量化成果加分
+    has_quantified = any(a.get("has_metric") for a in cand.achievements)
+    # 工作经历有相关关键词加分
+    job_keywords = set(s.lower() for s in job.must_have_capabilities)
+    rel_count = 0
+    for p in projects:
+        desc = (p.get("description", "") + p.get("name", "")).lower()
+        if any(k in desc for k in job_keywords):
+            rel_count += 1
+
+    if total >= 2 and (has_quantified or rel_count >= 1):
         level = "strong"
     elif total >= 1:
         level = "moderate"
     else:
         level = "weak"
 
+    score = min(100, total * 20 + (15 if has_quantified else 0) + min(rel_count * 10, 20))
+
     refs = []
-    if cand.projects:
-        refs.append(f"项目: {cand.projects[0].get('name', '')[:30]}")
-    if cand.internships:
-        refs.append(f"实习: {cand.internships[0].get('description', '')[:50]}")
+    if projects:
+        refs.append(f"项目: {projects[0].get('name', '')[:40]}")
+    if internships:
+        refs.append(f"实习: {internships[0].get('description', '')[:50]}")
+    if work:
+        refs.append(f"工作: {work[0].get('description', '')[:50]}")
 
     return DimensionResult(
         level=level,
-        score=min(100, total * 25),
-        summary=f"项目{project_count}个、实习{intern_count}段、工作{work_count}段",
+        score=score,
+        summary=f"项目{len(projects)}个、实习{len(internships)}段、工作{len(work)}段",
         evidence_refs=refs,
     )
 
@@ -118,13 +173,15 @@ def _risks_and_gaps(job: JobProfileResult, cand: CandidateProfileResult) -> Dime
     if missing:
         risks.append(f"必备技能缺口: {', '.join(list(missing)[:5])}")
 
-    level = "weak" if len(risks) >= 3 else "moderate" if len(risks) >= 1 else "strong"
-    score = max(0, 100 - len(risks) * 20)
+    # 区分 critical_gap / normal_gap
+    critical = [r for r in risks if any(k in r for k in ("学历", "专业", "必备"))]
+    level = "weak" if len(critical) >= 2 else "moderate" if len(risks) >= 1 else "strong"
+    score = max(0, 100 - len(risks) * 15 - len(critical) * 10)
 
     return DimensionResult(
         level=level,
         score=score,
-        summary=f"{len(risks)} 个风险点",
+        summary=f"{len(risks)} 个风险点（{len(critical)} 个关键）",
         evidence_refs=risks[:5],
     )
 
@@ -133,24 +190,30 @@ def analyze_fit(
     job_profile: JobProfileResult,
     candidate_profile: CandidateProfileResult,
 ) -> FitAnalysisResult:
-    """综合适配分析"""
+    """综合适配分析（v0.18 岗位类型感知权重）"""
     cap = _capability_fit(job_profile, candidate_profile)
     exp = _experience_relevance(job_profile, candidate_profile)
     growth = _growth_potential(job_profile, candidate_profile)
     evidence = _evidence_strength(candidate_profile)
     risks = _risks_and_gaps(job_profile, candidate_profile)
 
+    # 岗位类型感知权重
+    weight_profile = _infer_job_weight_profile(job_profile)
+    w = _WEIGHT_PROFILES.get(weight_profile, _WEIGHT_PROFILES["default"])
+
     # 综合分
     overall = round(
-        cap.score * 0.35 +
-        exp.score * 0.25 +
-        growth.score * 0.15 +
-        evidence.score * 0.15 +
-        risks.score * 0.10,
+        cap.score * w["capability"] +
+        exp.score * w["experience"] +
+        growth.score * w["growth"] +
+        evidence.score * w["evidence"] +
+        risks.score * w["risk"],
         1
     )
 
-    if overall >= 75 and cap.level != "weak":
+    # 等级判断
+    critical_gaps = len(risks.evidence_refs) if risks.level == "weak" else 0
+    if overall >= 70 and cap.level != "weak" and critical_gaps < 2:
         fit_level = "strong"
     elif overall >= 45:
         fit_level = "moderate"
@@ -160,9 +223,13 @@ def analyze_fit(
     # 优势
     strengths = []
     if cap.level == "strong":
-        strengths.append(f"技能匹配度高，覆盖必备技能")
+        strengths.append("技能匹配度高，覆盖必备技能")
+    elif cap.level == "moderate":
+        strengths.append("技能覆盖主要需求")
     if exp.level == "strong":
         strengths.append("项目/实习经历丰富")
+    elif exp.level == "moderate":
+        strengths.append("有相关项目经历")
     if growth.level == "strong":
         strengths.append("学习能力信号强")
     if evidence.level == "strong":
@@ -175,10 +242,13 @@ def analyze_fit(
     missing = must - cand_skills
     if missing:
         gaps.append(f"必备技能缺口: {', '.join(list(missing)[:5])}")
-    if not candidate_profile.projects:
-        gaps.append("缺少项目经历")
+    if not candidate_profile.projects and not candidate_profile.internships:
+        gaps.append("缺少项目/实习经历")
     if not candidate_profile.achievements:
         gaps.append("缺少量化成果")
+    # 学历/专业
+    if job_profile.education_preference and job_profile.education_preference not in ("未明确", ""):
+        gaps.append(f"学历要求: {job_profile.education_preference}")
 
     # 可迁移优势
     transferable = candidate_profile.transferable_strengths[:5]
@@ -187,6 +257,8 @@ def analyze_fit(
     learning_plan = []
     for skill in list(missing)[:5]:
         learning_plan.append(f"补充「{skill}」相关技能和项目经验")
+    if not candidate_profile.achievements:
+        learning_plan.append("在项目经历中补充量化成果（规模、效率、准确率）")
 
     # 面试策略
     interview_strategy = []

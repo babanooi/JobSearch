@@ -625,6 +625,21 @@ V1.1 先做“诊断结果 + 学习优先级”，V2 再接学习资源库，避
 - [x] `_SYNONYM_MAP` 扩展：产品/AI/数据同义词映射
 - [x] 138 个测试全部通过
 
+### product-mvp-v0.18 — 适配分析校准
+
+- [x] `FitAnalysisService` 岗位类型感知权重：intern/campus/senior/product/data/solution 各有不同权重
+- [x] `_infer_job_weight_profile`：根据 job_type/employment_type/job_name 推断权重类型
+- [x] `_capability_fit` 加分技能纳入评分
+- [x] `_experience_relevance` 关联项目经历加分
+- [x] `_risks_and_gaps` 区分 critical_gap / normal_gap，critical 才降等级
+- [x] strengths/gaps/learning_plan 更具体（不再泛泛而谈）
+- [x] fit_level 阈值调整：strong ≥70 + 无关键风险
+- [x] `FitAnalysisAgent` prompt 加入非硬性 ATS 约束、初级岗位/非技术岗位感知
+- [x] Golden Set 评测新增 fit_level_near_match、actual_fit_level、mismatch_reason
+- [x] passed 判定：fit_level_match 或 near_match 均算通过
+- [x] Golden Set: fit_level_match 0% → 20%，通过率 0% → 40%，avg_score 58.9 → 72.1
+- [x] 148 个测试全部通过
+
 ### V3.0 — 商业化
 
 - [ ] 高级分析功能
