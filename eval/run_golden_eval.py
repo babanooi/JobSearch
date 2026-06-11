@@ -145,8 +145,8 @@ def run_golden_eval(use_agent: bool = False, limit: int = 0, output: str = None)
     for i, case in enumerate(cases):
         print(f"[{i+1}/{len(cases)}] {case['case_id']}: {case['job_name']}...")
 
-        # 生成岗位画像
-        job_profile = extract_job_profile(case["job_name"], top_n=15)
+        # 生成岗位画像（使用 case 自带的 jd_texts，不依赖数据库）
+        job_profile = extract_job_profile(case["job_name"], top_n=15, raw_jd_texts=case.get("jd_texts", []))
         job_dict = job_profile.model_dump()
 
         # 生成候选人画像

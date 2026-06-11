@@ -696,6 +696,7 @@ function renderProfileReport(jobProfile,candidateProfile,fitReport,errorMsg){
     +'<div class="profile-card-head"><div><div class="profile-card-title">岗位画像</div></div><span>'+esc(job.job_type||'未知')+'</span></div>'
     +'<div class="profile-kv"><span>用工类型</span><b>'+esc(job.employment_type||'未明确')+'</b></div>'
     +'<div class="profile-kv"><span>面向人群</span><b>'+esc(job.target_audience||'未明确')+'</b></div>'
+    +'<div class="profile-kv"><span>JD 样本</span><b>'+(job.valid_sample_count||job.sample_count||0)+' 条有效'+(job.filtered_sample_count?' (过滤 '+job.filtered_sample_count+' 条低质量)':'')+'</b></div>'
     +'<div class="profile-kv"><span>学历要求</span><b>'+esc(job.education_preference||'未明确')+'</b></div>'
     +'<div class="profile-kv"><span>经验要求</span><b>'+esc(job.experience_requirement||'未明确')+'</b></div>'
     +'<p>核心职责</p><ul>'+profileEvidenceList(job.responsibilities||[],'暂无明确职责')+'</ul>'
@@ -703,6 +704,7 @@ function renderProfileReport(jobProfile,candidateProfile,fitReport,errorMsg){
     +'<p>加分能力</p><div class="screening-chip-row">'+chipRow(job.nice_to_have_capabilities||[],'暂无')+'</div>'
     +'<p>业务场景</p><div class="screening-chip-row">'+chipRow(job.business_context||[],'暂无')+'</div>'
     +'<div class="profile-kv"><span>置信度</span><b>'+esc(job.confidence||'low')+'</b></div>'
+    +(job.confidence==='low'?'<div class="gap-confidence low" style="margin-top:0.4rem;">⚠ 当前岗位样本较少，画像可信度有限</div>':'')
     +'</article>'
     // 候选人画像卡
     +'<article class="profile-card candidate-profile-card">'

@@ -9,6 +9,7 @@ from services.screening import (
     _extract_major_requirements, _extract_experience_requirements,
     _count_hits, BUSINESS_DOMAINS, SOFT_REQUIREMENTS, DEGREES, MAJOR_HINTS,
 )
+from services.jd_quality_service import filter_jd_items
 from services.profile_schemas import JobProfileResult, EvidenceItem
 from tools.skill_guard import normalize_job_name
 from tools.skill_taxonomy import filter_skill_names
@@ -17,11 +18,22 @@ from core.logger import get_logger
 logger = get_logger(__name__)
 
 
-def extract_job_profile(job_name: str, top_n: int = 20) -> JobProfileResult:
-    """从 JD 样本中提取结构化岗位画像"""
+def extract_job_profile(job_name: str, top_n: int = 20, raw_jd_texts: list[str] = None) -> JobProfileResult:
+    """从 JD 样本中提取结构化岗位画像。
+    raw_jd_texts 非空时优先使用（如 Golden Set 评测），否则从数据库读取。
+    """
     job_name = normalize_job_name(job_name)
-    jd_items = _fetch_jd_texts(job_name, limit=20)
-    jd_items = _filter_jd_quality(jd_items)
+
+    if raw_jd_texts:
+        jd_items = [{"text": t, "title": "", "company": "", "source_url": "", "fetched_at": ""} for t in raw_jd_texts]
+    else:
+        jd_items = _fetch_jd_texts(job_name, limit=20)
+
+    raw_count = len(jd_items)
+
+    # JD 质量过滤 + 去重
+    valid_jds, filtered_jds, quality_summary = filter_jd_items(jd_items, job_name=job_name)
+    jd_items = valid_jds
     texts = [item["text"] for item in jd_items if item.get("text")]
     stage = _infer_job_stage(job_name, texts)
     emp = _infer_employment_type(texts)
@@ -64,15 +76,20 @@ def extract_job_profile(job_name: str, top_n: int = 20) -> JobProfileResult:
             source=f"{item.get('company', '')} - {item.get('title', '')}",
         ))
 
-    # 置信度
-    conf = "high" if len(jd_items) >= 8 else "medium" if len(jd_items) >= 3 else "low"
+    # 置信度（考虑有效样本数）
+    valid_count = len(jd_items)
+    conf = "high" if valid_count >= 8 else "medium" if valid_count >= 3 else "low"
 
     # 质量标记
     flags = []
-    if len(jd_items) < 3:
-        flags.append("样本不足")
+    if valid_count < 3:
+        flags.append("有效样本不足")
+    if raw_count > 0 and valid_count < raw_count * 0.3:
+        flags.append("有效样本比例过低")
     if not must_have:
         flags.append("未提取到明确技能要求")
+    if quality_summary.get("avg_quality_score", 0) < 50:
+        flags.append("JD 整体质量偏低")
 
     return JobProfileResult(
         job_name=job_name,
@@ -90,7 +107,9 @@ def extract_job_profile(job_name: str, top_n: int = 20) -> JobProfileResult:
         evidence=evidence,
         confidence=conf,
         quality_flags=flags,
-        sample_count=len(jd_items),
+        sample_count=valid_count,
+        valid_sample_count=valid_count,
+        filtered_sample_count=raw_count - valid_count,
     )
 
 

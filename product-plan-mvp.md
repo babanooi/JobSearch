@@ -594,6 +594,17 @@ V1.1 先做“诊断结果 + 学习优先级”，V2 再接学习资源库，避
 - [ ] 学习资源推荐
 - [ ] 分享功能
 
+### product-mvp-v0.15 — JD 数据质量治理
+
+- [x] 新增 `services/jd_quality_service.py`：JD 质量评分（0-100）、质量等级（high/medium/low）、相关性判断、去重
+- [x] 过滤规则：过短/纯广告/纯福利/缺少岗位关键词/与岗位不相关
+- [x] 接入 `JobProfileService`：只使用有效 JD 生成画像，返回 valid_sample_count / filtered_sample_count
+- [x] 有效样本不足时 confidence 降低，quality_flags 标记
+- [x] 前端岗位画像卡展示 JD 样本数量和低置信提示
+- [x] 新增 `tests/test_jd_quality.py`：10 个测试覆盖短JD/福利/广告/相关性/去重/评分
+- [x] Golden Set 评测：候选人画像 80.1 分，岗位画像待有真实 JD 数据后提升
+- [x] 当前不做 OCR
+
 ### V3.0 — 商业化
 
 - [ ] 高级分析功能

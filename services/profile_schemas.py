@@ -26,6 +26,8 @@ class JobProfileResult(BaseModel):
     confidence: str = "low"
     quality_flags: list[str] = Field(default_factory=list)
     sample_count: int = 0
+    valid_sample_count: int = 0
+    filtered_sample_count: int = 0
 
 
 class CandidateProfileResult(BaseModel):
