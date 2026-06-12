@@ -861,15 +861,26 @@ async function loadMoreFitReports(){
 }
 async function viewFitReport(id){
   try{
+    // 更新 URL（不刷新页面），支持刷新恢复
+    const url=new URL(window.location);
+    url.searchParams.set('report_id',id);
+    history.pushState({report_id:id},'',url);
     const res=await api.getFitReport(id);
     if(res.code!==200)throw new Error('报告不存在');
-    // 后端已解析 JSON 字段，直接使用
     const fitReport=res.report||{};
     const jp=res.job_profile||null;
     const cp=res.candidate_profile||null;
     const warnings=res.warnings||[];
     currentJobProfile=jp;currentCandidateProfile=cp;currentFitReport=fitReport;
     renderProfileReport(jp,cp,fitReport);
+    // 在报告顶部加返回按钮
+    const reportEl=$('gapResult');
+    const backBtn=document.createElement('div');
+    backBtn.className='gap-confidence';
+    backBtn.style.cssText='margin-bottom:0.6rem;cursor:pointer;text-align:left;';
+    backBtn.innerHTML='← 返回分析';
+    backBtn.onclick=()=>{history.pushState({},'',window.location.pathname);currentJobProfile=null;currentCandidateProfile=null;currentFitReport=null;el.gapResult.innerHTML='<div class="gap-result-empty">差距结果将在这里显示</div>';};
+    reportEl.insertBefore(backBtn,reportEl.firstChild);
     if(warnings.length)toast('画像信息不完整：'+warnings.join('，'));
   }catch(e){
     toast('加载报告失败: '+e.message);
@@ -1311,5 +1322,14 @@ el.btnNewChat.addEventListener('click',()=>{threadId=crypto.randomUUID();allMess
   }else{
     msgs.forEach(m=>addMsg(m.role,fmt(m.content)));
   }
-  refreshSidebar();el.chatInput.focus();
+  refreshSidebar();
+
+  // v0.24: URL 参数 report_id 自动加载报告
+  const urlReportId=new URLSearchParams(window.location.search).get('report_id');
+  if(urlReportId){
+    switchView('gap');
+    viewFitReport(urlReportId);
+  }else{
+    el.chatInput.focus();
+  }
 })();
