@@ -76,7 +76,7 @@ const api={
   async submitEvaluation(data){const r=await fetch('/profile_evaluations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});return r.json();},
   async getEvaluationSummary(targetType){const r=await fetch('/profile_evaluations/summary?target_type='+encodeURIComponent(targetType||''));return r.json();},
   async listFitReports(uid,jobName,limit,offset){const p=new URLSearchParams();if(uid)p.set('user_id',uid);if(jobName)p.set('job_name',jobName);if(limit)p.set('limit',limit);if(offset)p.set('offset',offset);const r=await fetch('/fit_analysis_reports?'+p);return r.json();},
-  async getFitReport(id){const r=await fetch('/fit_analysis_reports/'+id);return r.json();},
+  async getFitReport(id,uid=0){const p=new URLSearchParams();if(uid)p.set('user_id',uid);const qs=p.toString();const r=await fetch('/fit_analysis_reports/'+id+(qs?'?'+qs:''));return r.json();},
   async deleteFitReport(id){const r=await fetch('/fit_analysis_reports/'+id+'?user_id='+userId,{method:'DELETE'});return r.json();},
   async rerunFitReport(id){const r=await fetch('/fit_analysis_reports/'+id+'/rerun',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:userId})});return r.json();},
 };
@@ -116,13 +116,14 @@ const el={
 // ── 视图切换 ──
 function switchView(v){
   currentView=v;
+  localStorage.setItem('js_current_view',v);
   document.querySelectorAll('.nav-icon').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   document.querySelectorAll('.view').forEach(vw=>vw.classList.remove('active'));
   const viewMap={chat:'viewChat',radar:'viewRadar',gap:'viewGap',research:'viewResearch',user:'viewUser'};
   const tgt=document.getElementById(viewMap[v]||'viewChat');
   if(tgt)tgt.classList.add('active');
   if(v==='radar')loadRadarQuickTags();
-  if(v==='gap')loadGapQuickTags();
+  if(v==='gap'){loadGapQuickTags();loadFitReportHistory();}
   if(v==='user')loadUserCenter();
 }
 document.querySelectorAll('.nav-icon').forEach(b=>b.addEventListener('click',()=>switchView(b.dataset.view)));
@@ -810,10 +811,9 @@ function _renderFitReportItem(r){
 async function loadFitReportHistory(){
   const container=$('fitReportHistory');
   if(!container)return;
-  const job=el.gapJobInput.value.trim();
   fitReportHistoryOffset=0;
   try{
-    const res=await api.listFitReports(userId,job||'',20,0);
+    const res=await api.listFitReports(userId,'',20,0);
     const items=res.items||[];
     fitReportHistoryHasMore=!!res.has_more;
     fitReportHistoryOffset=res.next_offset||0;
@@ -824,7 +824,8 @@ async function loadFitReportHistory(){
     container.innerHTML=items.map(r=>_renderFitReportItem(r)).join('')
       +(fitReportHistoryHasMore?'<button class="gap-mini-btn" id="btnLoadMoreReports" onclick="loadMoreFitReports()">加载更多</button>':'<div style="font-size:0.62rem;color:var(--text-muted);padding:0.3rem;">已加载全部</div>');
   }catch(e){
-    container.innerHTML='<div style="font-size:0.68rem;color:var(--text-muted);padding:0.4rem;">加载失败</div>';
+    console.error('加载历史报告失败:',e);
+    container.innerHTML='<div style="font-size:0.68rem;color:var(--text-muted);padding:0.4rem;">加载失败，请刷新重试</div>';
   }
 }
 
@@ -833,9 +834,8 @@ async function loadMoreFitReports(){
   fitReportHistoryLoading=true;
   const btn=$('btnLoadMoreReports');
   if(btn){btn.disabled=true;btn.textContent='加载中...';}
-  const job=el.gapJobInput.value.trim();
   try{
-    const res=await api.listFitReports(userId,job||'',20,fitReportHistoryOffset);
+    const res=await api.listFitReports(userId,'',20,fitReportHistoryOffset);
     const items=res.items||[];
     fitReportHistoryHasMore=!!res.has_more;
     fitReportHistoryOffset=res.next_offset||0;
@@ -865,14 +865,21 @@ async function viewFitReport(id){
     const url=new URL(window.location);
     url.searchParams.set('report_id',id);
     history.pushState({report_id:id},'',url);
-    const res=await api.getFitReport(id);
+    let res=await api.getFitReport(id,userId);
+    if(res.code!==200&&userId)res=await api.getFitReport(id);
     if(res.code!==200)throw new Error('报告不存在');
     const fitReport=res.report||{};
     const jp=res.job_profile||null;
     const cp=res.candidate_profile||null;
     const warnings=res.warnings||[];
+    const reportUserId=fitReport.user_id||cp?.user_id||jp?.user_id||0;
+    if(reportUserId&&reportUserId!==userId){
+      userId=reportUserId;
+      localStorage.setItem('js_user_id',String(userId));
+    }
     currentJobProfile=jp;currentCandidateProfile=cp;currentFitReport=fitReport;
     renderProfileReport(jp,cp,fitReport);
+    loadFitReportHistory();
     // 在报告顶部加返回按钮
     const reportEl=$('gapResult');
     const backBtn=document.createElement('div');
@@ -1324,11 +1331,14 @@ el.btnNewChat.addEventListener('click',()=>{threadId=crypto.randomUUID();allMess
   }
   refreshSidebar();
 
-  // v0.24: URL 参数 report_id 自动加载报告
+  // v0.24: URL 参数 report_id 自动加载报告，始终加载历史列表
   const urlReportId=new URLSearchParams(window.location.search).get('report_id');
   if(urlReportId){
     switchView('gap');
     viewFitReport(urlReportId);
+    loadFitReportHistory();
+  }else if(localStorage.getItem('js_current_view')==='gap'){
+    switchView('gap');
   }else{
     el.chatInput.focus();
   }
