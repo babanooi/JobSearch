@@ -664,6 +664,22 @@ V1.1 先做“诊断结果 + 学习优先级”，V2 再接学习资源库，避
 - [x] Golden Set 不退化（通过率 100%，avg_score 79.1）
 - [x] 不改变评分逻辑
 
+### product-mvp-v0.22 — 适配报告历史管理
+
+- [x] 新增 `services/fit_report_history_service.py`：`list_fit_reports` / `delete_fit_report` / `rerun_fit_report`
+- [x] GET `/fit_analysis_reports`：按 user_id + job_name 查询历史报告列表，支持 limit/offset
+- [x] DELETE `/fit_analysis_reports/{id}`：删除报告，校验只能删自己的，HTTP 404 不存在或无权
+- [x] POST `/fit_analysis_reports/{id}/rerun`：读取旧报告的 job_profile_id + candidate_profile_id，调用 `analyze_fit` 生成新报告，保存为新记录，不覆盖旧报告
+- [x] 删除报告只删 `fit_analysis_reports`，不删 `job_profile` / `candidate_profile`
+- [x] 前端历史报告列表：岗位名、总分、fit level、confidence、创建时间、摘要
+- [x] 前端查看详情：调用 `GET /fit_analysis_reports/{id}` + 尝试回填画像
+- [x] 前端删除：confirm 后调用 DELETE，刷新列表
+- [x] 前端重跑：confirm 后调用 POST /rerun，渲染新报告，刷新列表
+- [x] 新增 `tests/test_fit_report_history.py`：10 个测试全部通过
+- [x] 170 个测试全部通过
+- [x] Golden Set 不退化（通过率 100%，avg_score 78.9）
+- 技术债：历史列表暂无"加载更多"分页；重跑走规则版 `analyze_fit` 不走 Agent；详情回填画像失败时只显示报告
+
 ### V3.0 — 商业化
 
 - [ ] 高级分析功能

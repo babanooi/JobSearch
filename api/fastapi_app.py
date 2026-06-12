@@ -644,6 +644,36 @@ def get_fit_analysis(report_id: int):
         ]}}
 
 
+# ── 适配报告历史管理 ──
+@app.get("/fit_analysis_reports")
+def list_fit_reports(user_id: int = Query(0), job_name: str = Query(""), limit: int = Query(20, ge=1, le=100), offset: int = Query(0, ge=0)):
+    from services.fit_report_history_service import list_fit_reports
+    items, total = list_fit_reports(user_id=user_id, job_name=job_name, limit=limit, offset=offset)
+    return {"code": 200, "items": items, "total": total}
+
+
+@app.delete("/fit_analysis_reports/{report_id}")
+def delete_fit_report(report_id: int, user_id: int = Query(0)):
+    from services.fit_report_history_service import delete_fit_report
+    ok = delete_fit_report(report_id, user_id=user_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="报告不存在或无权删除")
+    return {"code": 200, "message": "已删除"}
+
+
+class RerunRequest(BaseModel):
+    user_id: int = 0
+
+
+@app.post("/fit_analysis_reports/{report_id}/rerun")
+def rerun_fit_report(report_id: int, request: RerunRequest):
+    from services.fit_report_history_service import rerun_fit_report
+    result = rerun_fit_report(report_id, user_id=request.user_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="报告不存在或无权操作")
+    return {"code": 200, "new_report_id": result["id"], "report": result["report"]}
+
+
 # ── 通用画像反馈 ──
 class ProfileFeedbackRequest(BaseModel):
     user_id: int

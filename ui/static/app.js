@@ -75,6 +75,10 @@ const api={
   async createFitAnalysis(userId,jobProfileId,candidateProfileId){const r=await fetch('/fit_analysis_reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:userId,job_profile_id:jobProfileId,candidate_profile_id:candidateProfileId})});return r.json();},
   async submitEvaluation(data){const r=await fetch('/profile_evaluations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});return r.json();},
   async getEvaluationSummary(targetType){const r=await fetch('/profile_evaluations/summary?target_type='+encodeURIComponent(targetType||''));return r.json();},
+  async listFitReports(uid,jobName,limit,offset){const p=new URLSearchParams();if(uid)p.set('user_id',uid);if(jobName)p.set('job_name',jobName);if(limit)p.set('limit',limit);if(offset)p.set('offset',offset);const r=await fetch('/fit_analysis_reports?'+p);return r.json();},
+  async getFitReport(id){const r=await fetch('/fit_analysis_reports/'+id);return r.json();},
+  async deleteFitReport(id){const r=await fetch('/fit_analysis_reports/'+id+'?user_id='+userId,{method:'DELETE'});return r.json();},
+  async rerunFitReport(id){const r=await fetch('/fit_analysis_reports/'+id+'/rerun',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:userId})});return r.json();},
 };
 
 function lastThreadKey(uid=userId){return 'last_thread_id_'+uid;}
@@ -587,6 +591,7 @@ async function runGapAnalysis(){
     profileAnalysisLoading=false;
     profileAnalysisError='';
     renderProfileReport(currentJobProfile,currentCandidateProfile,currentFitReport);
+    loadFitReportHistory();  // 刷新历史列表
 
     // 后台加载旧技能差距数据作为补充
     try{
@@ -781,6 +786,91 @@ function renderProfileReport(jobProfile,candidateProfile,fitReport,errorMsg){
 
   h+='</div>';
   el.gapResult.innerHTML=h;
+}
+
+// ── v0.22 历史报告管理 ──
+async function loadFitReportHistory(){
+  const container=$('fitReportHistory');
+  if(!container)return;
+  const job=el.gapJobInput.value.trim();
+  try{
+    const res=await api.listFitReports(userId,job||'',20,0);
+    const items=res.items||[];
+    if(!items.length){
+      container.innerHTML='<div style="font-size:0.68rem;color:var(--text-muted);padding:0.4rem;">暂无历史报告</div>';
+      return;
+    }
+    container.innerHTML=items.map(r=>{
+      const levelCls=r.overall_fit_level==='strong'?'dim-strong':r.overall_fit_level==='moderate'?'dim-moderate':'dim-weak';
+      const score=Math.round(r.overall_score||0);
+      return '<div class="fit-report-item" data-id="'+r.id+'">'
+        +'<div class="fit-report-head"><span class="fit-report-job">'+esc(r.job_name||'未知岗位')+'</span>'
+        +'<span class="screening-risk '+riskClass(r.overall_fit_level)+'">'+riskLabel(r.overall_fit_level)+'</span></div>'
+        +'<div class="fit-report-meta"><span>'+score+'分</span><span>'+esc(r.confidence||'')+'</span><span>'+(r.created_at||'').slice(0,16)+'</span></div>'
+        +'<div class="fit-report-summary">'+esc((r.fit_summary||'').slice(0,80))+'</div>'
+        +'<div class="fit-report-actions">'
+        +'<button class="gap-mini-btn" onclick="viewFitReport('+r.id+')">查看</button>'
+        +'<button class="gap-mini-btn" onclick="rerunFitReport('+r.id+')">重新分析</button>'
+        +'<button class="gap-mini-btn" style="color:var(--red);" onclick="deleteFitReport('+r.id+')">删除</button>'
+        +'</div></div>';
+    }).join('');
+  }catch(e){
+    container.innerHTML='<div style="font-size:0.68rem;color:var(--text-muted);padding:0.4rem;">加载失败</div>';
+  }
+}
+async function viewFitReport(id){
+  try{
+    const res=await api.getFitReport(id);
+    if(res.code!==200)throw new Error('报告不存在');
+    const r=res.report;
+    // 尝试加载关联的画像
+    let jp=null,cp=null;
+    try{const jpRes=await fetch('/job_profiles/'+r.job_profile_id).then(x=>x.json());if(jpRes.code===200)jp=jpRes.profile;}catch(_){}
+    try{const cpRes=await fetch('/candidate_profiles/'+r.candidate_profile_id).then(x=>x.json());if(cpRes.code===200)cp=cpRes.profile;}catch(_){}
+    // 解析 JSON 字段
+    const fitReport={
+      ...r,
+      capability_fit:typeof r.capability_fit==='string'?JSON.parse(r.capability_fit||'{}'):r.capability_fit||{},
+      experience_relevance:typeof r.experience_relevance==='string'?JSON.parse(r.experience_relevance||'{}'):r.experience_relevance||{},
+      growth_potential:typeof r.growth_potential==='string'?JSON.parse(r.growth_potential||'{}'):r.growth_potential||{},
+      evidence_strength:typeof r.evidence_strength==='string'?JSON.parse(r.evidence_strength||'{}'):r.evidence_strength||{},
+      risks_and_gaps:typeof r.risks_and_gaps==='string'?JSON.parse(r.risks_and_gaps||'{}'):r.risks_and_gaps||{},
+      strengths:typeof r.strengths==='string'?JSON.parse(r.strengths||'[]'):r.strengths||[],
+      gaps:typeof r.gaps==='string'?JSON.parse(r.gaps||'[]'):r.gaps||[],
+      transferable_strengths:typeof r.transferable_strengths==='string'?JSON.parse(r.transferable_strengths||'[]'):r.transferable_strengths||[],
+      learning_plan:typeof r.learning_plan==='string'?JSON.parse(r.learning_plan||'[]'):r.learning_plan||[],
+      interview_strategy:typeof r.interview_strategy==='string'?JSON.parse(r.interview_strategy||'[]'):r.interview_strategy||[],
+      evidence_refs:typeof r.evidence_refs==='string'?JSON.parse(r.evidence_refs||'[]'):r.evidence_refs||[],
+    };
+    currentJobProfile=jp;currentCandidateProfile=cp;currentFitReport=fitReport;
+    renderProfileReport(jp,cp,fitReport);
+  }catch(e){
+    toast('加载报告失败: '+e.message);
+  }
+}
+async function rerunFitReport(id){
+  if(!confirm('确定重新分析？将创建一份新报告。'))return;
+  try{
+    toast('正在重新分析...');
+    const res=await api.rerunFitReport(id);
+    if(res.code!==200)throw new Error('重跑失败');
+    toast('分析完成');
+    await viewFitReport(res.new_report_id);
+    loadFitReportHistory();
+  }catch(e){
+    toast('重新分析失败: '+e.message);
+  }
+}
+async function deleteFitReport(id){
+  if(!confirm('确定删除此报告？'))return;
+  try{
+    const res=await api.deleteFitReport(id);
+    if(res.code!==200)throw new Error('删除失败');
+    toast('已删除');
+    loadFitReportHistory();
+  }catch(e){
+    toast('删除失败: '+e.message);
+  }
 }
 
 function renderGapResult(result){

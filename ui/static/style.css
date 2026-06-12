@@ -510,6 +510,20 @@ cite-warn{color:var(--gold);font-size:0.55rem;margin-left:3px;}
 .fit-dim-summary{font-size:0.6rem;color:var(--text-dim);line-height:1.4;text-align:left;word-break:break-word;}
 .fit-dim-refs{display:flex;flex-direction:column;gap:0.15rem;text-align:left;}
 .fit-dim-ref{font-size:0.58rem;color:var(--text-muted);word-break:break-word;}
+
+/* ── 历史报告列表（v0.22）── */
+.fit-history-section{margin-top:0.8rem;border-top:1px solid var(--border);padding-top:0.6rem;}
+.fit-history-list{display:flex;flex-direction:column;gap:0.4rem;max-height:300px;overflow-y:auto;}
+.fit-report-item{
+  background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:0.55rem 0.7rem;transition:var(--transition);cursor:pointer;
+}
+.fit-report-item:hover{border-color:var(--border-active);}
+.fit-report-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.3rem;}
+.fit-report-job{font-size:0.78rem;font-weight:600;}
+.fit-report-meta{display:flex;gap:0.5rem;font-size:0.62rem;color:var(--text-dim);margin-bottom:0.3rem;}
+.fit-report-summary{font-size:0.65rem;color:var(--text-dim);line-height:1.4;margin-bottom:0.4rem;word-break:break-word;}
+.fit-report-actions{display:flex;gap:0.35rem;}
 .profile-card-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;margin:0.9rem 0;}
 .profile-card-grid.single{grid-template-columns:1fr;margin-top:0;}
 .profile-card{
