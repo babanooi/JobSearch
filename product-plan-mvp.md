@@ -680,6 +680,19 @@ V1.1 先做“诊断结果 + 学习优先级”，V2 再接学习资源库，避
 - [x] Golden Set 不退化（通过率 100%，avg_score 78.9）
 - 技术债：历史列表暂无"加载更多"分页；重跑走规则版 `analyze_fit` 不走 Agent；详情回填画像失败时只显示报告
 
+### product-mvp-v0.23 — 历史报告详情回填 + 分页
+
+- [x] `GET /fit_analysis_reports/{id}` 增强：返回 report + job_profile + candidate_profile + warnings
+- [x] JSON 字段在后端解析，前端不再手动 json.loads
+- [x] 画像缺失时接口仍 200，返回 `job_profile: null` + warnings
+- [x] `GET /fit_analysis_reports` 返回 `has_more` / `next_offset` / `limit` / `offset`
+- [x] `limit` 上限 50
+- [x] 新增 `services/fit_report_history_service.py` 序列化函数：`serialize_fit_report` / `serialize_job_profile` / `serialize_candidate_profile` / `get_fit_report_detail`
+- [x] 前端 `viewFitReport` 使用新 API 返回，画像缺失时 toast 提示
+- [x] 前端历史列表支持"加载更多"分页按钮
+- [x] 新增 `tests/test_fit_report_detail.py`：8 个测试全部通过
+- 技术债：重跑走规则版 `analyze_fit`；前端详情无独立 URL
+
 ### V3.0 — 商业化
 
 - [ ] 高级分析功能

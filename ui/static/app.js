@@ -788,62 +788,89 @@ function renderProfileReport(jobProfile,candidateProfile,fitReport,errorMsg){
   el.gapResult.innerHTML=h;
 }
 
-// ── v0.22 历史报告管理 ──
+// ── v0.22/v0.23 历史报告管理 ──
+let fitReportHistoryOffset=0;
+let fitReportHistoryHasMore=false;
+let fitReportHistoryLoading=false;
+
+function _renderFitReportItem(r){
+  const score=Math.round(r.overall_score||0);
+  return '<div class="fit-report-item" data-id="'+r.id+'">'
+    +'<div class="fit-report-head"><span class="fit-report-job">'+esc(r.job_name||'未知岗位')+'</span>'
+    +'<span class="screening-risk '+riskClass(r.overall_fit_level)+'">'+riskLabel(r.overall_fit_level)+'</span></div>'
+    +'<div class="fit-report-meta"><span>'+score+'分</span><span>'+esc(r.confidence||'')+'</span><span>'+(r.created_at||'').slice(0,16)+'</span></div>'
+    +'<div class="fit-report-summary">'+esc((r.fit_summary||'').slice(0,80))+'</div>'
+    +'<div class="fit-report-actions">'
+    +'<button class="gap-mini-btn" onclick="viewFitReport('+r.id+')">查看</button>'
+    +'<button class="gap-mini-btn" onclick="rerunFitReport('+r.id+')">重新分析</button>'
+    +'<button class="gap-mini-btn" style="color:var(--red);" onclick="deleteFitReport('+r.id+')">删除</button>'
+    +'</div></div>';
+}
+
 async function loadFitReportHistory(){
   const container=$('fitReportHistory');
   if(!container)return;
   const job=el.gapJobInput.value.trim();
+  fitReportHistoryOffset=0;
   try{
     const res=await api.listFitReports(userId,job||'',20,0);
     const items=res.items||[];
+    fitReportHistoryHasMore=!!res.has_more;
+    fitReportHistoryOffset=res.next_offset||0;
     if(!items.length){
       container.innerHTML='<div style="font-size:0.68rem;color:var(--text-muted);padding:0.4rem;">暂无历史报告</div>';
       return;
     }
-    container.innerHTML=items.map(r=>{
-      const levelCls=r.overall_fit_level==='strong'?'dim-strong':r.overall_fit_level==='moderate'?'dim-moderate':'dim-weak';
-      const score=Math.round(r.overall_score||0);
-      return '<div class="fit-report-item" data-id="'+r.id+'">'
-        +'<div class="fit-report-head"><span class="fit-report-job">'+esc(r.job_name||'未知岗位')+'</span>'
-        +'<span class="screening-risk '+riskClass(r.overall_fit_level)+'">'+riskLabel(r.overall_fit_level)+'</span></div>'
-        +'<div class="fit-report-meta"><span>'+score+'分</span><span>'+esc(r.confidence||'')+'</span><span>'+(r.created_at||'').slice(0,16)+'</span></div>'
-        +'<div class="fit-report-summary">'+esc((r.fit_summary||'').slice(0,80))+'</div>'
-        +'<div class="fit-report-actions">'
-        +'<button class="gap-mini-btn" onclick="viewFitReport('+r.id+')">查看</button>'
-        +'<button class="gap-mini-btn" onclick="rerunFitReport('+r.id+')">重新分析</button>'
-        +'<button class="gap-mini-btn" style="color:var(--red);" onclick="deleteFitReport('+r.id+')">删除</button>'
-        +'</div></div>';
-    }).join('');
+    container.innerHTML=items.map(r=>_renderFitReportItem(r)).join('')
+      +(fitReportHistoryHasMore?'<button class="gap-mini-btn" id="btnLoadMoreReports" onclick="loadMoreFitReports()">加载更多</button>':'<div style="font-size:0.62rem;color:var(--text-muted);padding:0.3rem;">已加载全部</div>');
   }catch(e){
     container.innerHTML='<div style="font-size:0.68rem;color:var(--text-muted);padding:0.4rem;">加载失败</div>';
+  }
+}
+
+async function loadMoreFitReports(){
+  if(fitReportHistoryLoading||!fitReportHistoryHasMore)return;
+  fitReportHistoryLoading=true;
+  const btn=$('btnLoadMoreReports');
+  if(btn){btn.disabled=true;btn.textContent='加载中...';}
+  const job=el.gapJobInput.value.trim();
+  try{
+    const res=await api.listFitReports(userId,job||'',20,fitReportHistoryOffset);
+    const items=res.items||[];
+    fitReportHistoryHasMore=!!res.has_more;
+    fitReportHistoryOffset=res.next_offset||0;
+    const container=$('fitReportHistory');
+    // 移除旧的"加载更多"按钮
+    const oldBtn=$('btnLoadMoreReports');
+    if(oldBtn)oldBtn.remove();
+    // 追加新条目
+    const tempDiv=document.createElement('div');
+    tempDiv.innerHTML=items.map(r=>_renderFitReportItem(r)).join('');
+    while(tempDiv.firstChild)container.appendChild(tempDiv.firstChild);
+    // 追加新的按钮或"已加载全部"
+    if(fitReportHistoryHasMore){
+      container.insertAdjacentHTML('beforeend','<button class="gap-mini-btn" id="btnLoadMoreReports" onclick="loadMoreFitReports()">加载更多</button>');
+    }else{
+      container.insertAdjacentHTML('beforeend','<div style="font-size:0.62rem;color:var(--text-muted);padding:0.3rem;">已加载全部</div>');
+    }
+  }catch(e){
+    toast('加载失败');
+  }finally{
+    fitReportHistoryLoading=false;
   }
 }
 async function viewFitReport(id){
   try{
     const res=await api.getFitReport(id);
     if(res.code!==200)throw new Error('报告不存在');
-    const r=res.report;
-    // 尝试加载关联的画像
-    let jp=null,cp=null;
-    try{const jpRes=await fetch('/job_profiles/'+r.job_profile_id).then(x=>x.json());if(jpRes.code===200)jp=jpRes.profile;}catch(_){}
-    try{const cpRes=await fetch('/candidate_profiles/'+r.candidate_profile_id).then(x=>x.json());if(cpRes.code===200)cp=cpRes.profile;}catch(_){}
-    // 解析 JSON 字段
-    const fitReport={
-      ...r,
-      capability_fit:typeof r.capability_fit==='string'?JSON.parse(r.capability_fit||'{}'):r.capability_fit||{},
-      experience_relevance:typeof r.experience_relevance==='string'?JSON.parse(r.experience_relevance||'{}'):r.experience_relevance||{},
-      growth_potential:typeof r.growth_potential==='string'?JSON.parse(r.growth_potential||'{}'):r.growth_potential||{},
-      evidence_strength:typeof r.evidence_strength==='string'?JSON.parse(r.evidence_strength||'{}'):r.evidence_strength||{},
-      risks_and_gaps:typeof r.risks_and_gaps==='string'?JSON.parse(r.risks_and_gaps||'{}'):r.risks_and_gaps||{},
-      strengths:typeof r.strengths==='string'?JSON.parse(r.strengths||'[]'):r.strengths||[],
-      gaps:typeof r.gaps==='string'?JSON.parse(r.gaps||'[]'):r.gaps||[],
-      transferable_strengths:typeof r.transferable_strengths==='string'?JSON.parse(r.transferable_strengths||'[]'):r.transferable_strengths||[],
-      learning_plan:typeof r.learning_plan==='string'?JSON.parse(r.learning_plan||'[]'):r.learning_plan||[],
-      interview_strategy:typeof r.interview_strategy==='string'?JSON.parse(r.interview_strategy||'[]'):r.interview_strategy||[],
-      evidence_refs:typeof r.evidence_refs==='string'?JSON.parse(r.evidence_refs||'[]'):r.evidence_refs||[],
-    };
+    // 后端已解析 JSON 字段，直接使用
+    const fitReport=res.report||{};
+    const jp=res.job_profile||null;
+    const cp=res.candidate_profile||null;
+    const warnings=res.warnings||[];
     currentJobProfile=jp;currentCandidateProfile=cp;currentFitReport=fitReport;
     renderProfileReport(jp,cp,fitReport);
+    if(warnings.length)toast('画像信息不完整：'+warnings.join('，'));
   }catch(e){
     toast('加载报告失败: '+e.message);
   }

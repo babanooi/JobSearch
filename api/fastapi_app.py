@@ -627,29 +627,20 @@ def create_fit_analysis(request: FitAnalysisRequest):
 
 
 @app.get("/fit_analysis_reports/{report_id}")
-def get_fit_analysis(report_id: int):
-    from models.profile import FitAnalysisReport
-    from models.database import SessionLocal as _SL
-    with _SL() as session:
-        obj = session.get(FitAnalysisReport, report_id)
-        if not obj:
-            return {"code": 404, "message": "适配分析报告不存在"}
-        return {"code": 200, "report": {k: getattr(obj, k) for k in [
-            "id", "user_id", "job_profile_id", "candidate_profile_id",
-            "overall_fit_level", "overall_score", "fit_summary",
-            "capability_fit", "experience_relevance", "growth_potential",
-            "evidence_strength", "risks_and_gaps", "strengths", "gaps",
-            "transferable_strengths", "learning_plan", "interview_strategy",
-            "evidence_refs", "confidence", "created_at",
-        ]}}
+def get_fit_analysis(report_id: int, user_id: int = Query(0)):
+    from services.fit_report_history_service import get_fit_report_detail
+    detail = get_fit_report_detail(report_id, user_id=user_id)
+    if not detail:
+        return {"code": 404, "message": "适配分析报告不存在"}
+    return {"code": 200, **detail}
 
 
 # ── 适配报告历史管理 ──
 @app.get("/fit_analysis_reports")
-def list_fit_reports(user_id: int = Query(0), job_name: str = Query(""), limit: int = Query(20, ge=1, le=100), offset: int = Query(0, ge=0)):
+def list_fit_reports_endpoint(user_id: int = Query(0), job_name: str = Query(""), limit: int = Query(20, ge=1, le=50), offset: int = Query(0, ge=0)):
     from services.fit_report_history_service import list_fit_reports
-    items, total = list_fit_reports(user_id=user_id, job_name=job_name, limit=limit, offset=offset)
-    return {"code": 200, "items": items, "total": total}
+    items, total, page = list_fit_reports(user_id=user_id, job_name=job_name, limit=limit, offset=offset)
+    return {"code": 200, "items": items, "total": total, **page}
 
 
 @app.delete("/fit_analysis_reports/{report_id}")
